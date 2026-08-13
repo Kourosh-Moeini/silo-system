@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Spring Cart",
+    "path": "spring_cart.py",
+    "num_states": 2,
+    "smoke_gains": {
+      "Kp": 10.0,
+      "Kd": 2.0
+    },
+    "default_scenario": {
+      "initial_condition_range": [-1.0, 1.0],
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0
+    }
+  }
+]

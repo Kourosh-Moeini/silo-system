@@ -1,0 +1,48 @@
+{
+    "summary": {
+        "passed": 53,
+        "failed": 0,
+        "skipped": 0
+    },
+    "categories": {
+        "other": {
+            "passed": 10,
+            "failed": 0
+        },
+        "design": {
+            "passed": 12,
+            "failed": 0
+        },
+        "simulate": {
+            "passed": 3,
+            "failed": 0
+        },
+        "unit": {
+            "passed": 27,
+            "failed": 0
+        },
+        "fixtures": {
+            "passed": 1,
+            "failed": 0
+        }
+    },
+    "distributions": {
+        "mse": {
+            "mean": 0.1992,
+            "max": 0.5931,
+            "min": 0.0001
+        },
+        "settling_time": {
+            "mean": 2.1367,
+            "max": 5.0,
+            "min": 0.55
+        },
+        "stable_rate_percent": 66.67
+    },
+    "flaky_tests": [],
+    "wall_time": 1.47,
+    "comparison_vs_baseline": {
+        "mse_trend": "degraded",
+        "mse_diff": 0.0233
+    }
+}
