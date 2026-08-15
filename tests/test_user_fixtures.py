@@ -3,6 +3,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 from api.main import app
+from src.systems import CustomDynamicalSystem
 
 client = TestClient(app)
 
@@ -21,7 +22,7 @@ def load_registry():
 user_fixtures = load_registry()
 
 @pytest.mark.parametrize("fixture", user_fixtures, ids=lambda f: f["name"])
-def test_user_provided_dynamics(fixture):
+def test_user_provided_dynamics(fixture, record_sim):
     """
     Dynamically tests user-uploaded models using their registered smoke gains.
     """
@@ -53,3 +54,36 @@ def test_user_provided_dynamics(fixture):
     assert "mse" in data["metrics"]
     assert "stable" in data["metrics"]
     assert len(data["trajectory"]) > 0
+
+    # Feed the fixture's metrics into the Phase-3 progress report.
+    record_sim(data["metrics"])
+
+
+@pytest.mark.parametrize("fixture", user_fixtures, ids=lambda f: f["name"])
+def test_user_dynamics_num_states(fixture):
+    """The plant's ACTUAL state dimension must match the registry's declared
+    `num_states`.
+
+    This turns the registry field from documentation into a checked contract:
+    the engine auto-detects the state dimension from the dynamics function
+    (src/systems.py::_detect_system_properties), so a mis-declared dimension —
+    or a file whose shape drifts over time — fails CI here instead of silently
+    passing the smoke test above.
+
+    `num_states` is optional in the registry ("if known"), so we skip when it
+    isn't declared rather than fail.
+    """
+    if "num_states" not in fixture:
+        pytest.skip(f"{fixture['name']}: no expected num_states declared in registry")
+
+    # Absolute path (independent of CWD) so detection works wherever pytest runs.
+    abs_path = os.path.join(FIXTURE_DIR, fixture["path"])
+
+    # Construct exactly what the simulate path constructs, and read the
+    # dimension the engine itself detected.
+    system = CustomDynamicalSystem(abs_path, fixture.get("default_scenario"))
+
+    assert system.num_states == fixture["num_states"], (
+        f"{fixture['name']}: registry declares num_states={fixture['num_states']} "
+        f"but the engine detected {system.num_states} from {fixture['path']}"
+    )

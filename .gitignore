@@ -13,3 +13,15 @@ env/
 # IDE files
 .vscode/
 .idea/
+
+# Tooling / runtime
+.claude/
+.logs/
+
+# Archives
+*.rar
+
+# Scratch / exploratory work kept locally but out of the submission
+my_tests.ipynb
+Old tests/
+benchmarks/
