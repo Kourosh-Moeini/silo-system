@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-17T20:16:58",
-  "wall_time_seconds": 1.97,
+  "generated_at": "2026-08-17T21:19:30",
+  "wall_time_seconds": 2.08,
   "summary": {
     "passed": 48,
     "failed": 0,
@@ -55,6 +55,8 @@
     }
   },
   "test_randomness_same_config_diff_seeds": {
+    "title": "Same config, different seeds",
+    "description": "Drives run_optimization on each built-in plant under a fixed 'medium' scenario (IC=[0.5, 0.5], randomness_level=0.5, disturbance_level=0.2) with PID, max_iter=5, over seeds [1, 7, 42, 100, 2026]. Last-iteration metrics are aggregated over all plants x seeds. success_rate = exp(-mean steady-state error) in (0, 1]; 1 means zero average steady-state error.",
     "config": {
       "scenario": {
         "id": "medium",
@@ -80,6 +82,16 @@
         100,
         2026
       ]
+    },
+    "aggregate": {
+      "n_samples": 15,
+      "mse_mean": 13.651191,
+      "mse_variance": 1289.876165,
+      "rmse_mean": 2.467808,
+      "rmse_variance": 7.561114,
+      "ss_error_mean": 3.730118,
+      "ss_error_variance": 38.265456,
+      "success_rate": 0.02399
     },
     "plants": {
       "ball_beam": {
@@ -286,6 +298,8 @@
     }
   },
   "test_randomness_same_seed_repeated_runs": {
+    "title": "Repeated runs (same seed)",
+    "description": "Same 'medium' scenario, PID and max_iter=5, but a single fixed seed (42) run 5 times per plant; only the last run's metrics are recorded per plant (the design 'seed' does not reseed the mock agents' gain RNG, so repeats differ). Values aggregate the recorded last runs across the plants; statistics and success_rate are defined as in the different-seeds subsection.",
     "config": {
       "scenario": {
         "id": "medium",
@@ -305,209 +319,58 @@
       "dt": 0.01,
       "max_time": 5.0,
       "seed": 42,
-      "repeats": 5
+      "repeats": 5,
+      "recorded": "last run per plant only"
+    },
+    "aggregate": {
+      "n_samples": 3,
+      "mse_mean": 10.090144,
+      "mse_variance": 75.523234,
+      "rmse_mean": 2.857713,
+      "rmse_variance": 1.923619,
+      "ss_error_mean": 3.322054,
+      "ss_error_variance": 3.57628,
+      "success_rate": 0.036079
     },
     "plants": {
       "ball_beam": {
-        "run=1": {
-          "mse": 3.3574804647501884,
-          "rmse": 1.832342889513365,
-          "settling_time": null,
-          "overshoot": 103.7472309073438,
-          "stable": false,
-          "stability_margin": -2629.3398057209606,
-          "rise_time": 0.18,
-          "zero_crossings": 26.0,
-          "control_effort": 0.9985465095742577,
-          "control_zero_crossings": 320.0,
-          "ss_error": 3.1654939376418922
-        },
-        "run=2": {
-          "mse": 2.8968747903288974,
-          "rmse": 1.7020207960917801,
-          "settling_time": null,
-          "overshoot": 103.23492813409243,
-          "stable": false,
-          "stability_margin": -2347.587590335105,
-          "rise_time": 0.18,
-          "zero_crossings": 26.0,
-          "control_effort": 0.9985711960220918,
-          "control_zero_crossings": 324.0,
-          "ss_error": 2.626210631290334
-        },
-        "run=3": {
-          "mse": 4.071325333045359,
-          "rmse": 2.0177525450474247,
-          "settling_time": null,
-          "overshoot": 97.80901190440142,
-          "stable": false,
-          "stability_margin": -2131.0856800378206,
-          "rise_time": 0.03,
-          "zero_crossings": 14.0,
-          "control_effort": 0.9989581254830856,
-          "control_zero_crossings": 318.0,
-          "ss_error": 3.545600218078385
-        },
-        "run=4": {
-          "mse": 1.8236661232680618,
-          "rmse": 1.3504318284415773,
-          "settling_time": null,
-          "overshoot": 117.24558604180473,
-          "stable": false,
-          "stability_margin": -1924.3935863628033,
-          "rise_time": 0.7000000000000001,
-          "zero_crossings": 32.0,
-          "control_effort": 0.9981239708969479,
-          "control_zero_crossings": 324.0,
-          "ss_error": 1.8760945631761734
-        },
-        "run=5": {
-          "mse": 6.326546805918811,
-          "rmse": 2.5152627707495716,
-          "settling_time": null,
-          "overshoot": 95.65954472393811,
-          "stable": false,
-          "stability_margin": -2876.471414309292,
-          "rise_time": 0.03,
-          "zero_crossings": 14.0,
-          "control_effort": 0.9862294366795589,
-          "control_zero_crossings": 306.0,
-          "ss_error": 4.89445153099232
-        }
+        "mse": 6.326546805918811,
+        "rmse": 2.5152627707495716,
+        "settling_time": null,
+        "overshoot": 95.65954472393811,
+        "stable": false,
+        "stability_margin": -2876.471414309292,
+        "rise_time": 0.03,
+        "zero_crossings": 14.0,
+        "control_effort": 0.9862294366795589,
+        "control_zero_crossings": 306.0,
+        "ss_error": 4.89445153099232
       },
       "dc_motor": {
-        "run=1": {
-          "mse": 2.3306524825549393,
-          "rmse": 1.5266474650537167,
-          "settling_time": null,
-          "overshoot": 311.452412913675,
-          "stable": false,
-          "stability_margin": -2170.92131820423,
-          "rise_time": 1.0,
-          "zero_crossings": 120.0,
-          "control_effort": 1.0,
-          "control_zero_crossings": 256.0,
-          "ss_error": 1.1241707624105919
-        },
-        "run=2": {
-          "mse": 2.057346802407231,
-          "rmse": 1.4343454264601783,
-          "settling_time": null,
-          "overshoot": 279.0189269691309,
-          "stable": false,
-          "stability_margin": -2097.016021737215,
-          "rise_time": 0.89,
-          "zero_crossings": 144.0,
-          "control_effort": 0.9981351036432295,
-          "control_zero_crossings": 256.0,
-          "ss_error": 1.0155811783054751
-        },
-        "run=3": {
-          "mse": 3.838395062465178,
-          "rmse": 1.959182243300806,
-          "settling_time": null,
-          "overshoot": 446.1809082480724,
-          "stable": false,
-          "stability_margin": -2130.904541240362,
-          "rise_time": 0.25,
-          "zero_crossings": 89.0,
-          "control_effort": 0.9993048670411125,
-          "control_zero_crossings": 253.0,
-          "ss_error": 0.6796535371432557
-        },
-        "run=4": {
-          "mse": 5.694619566533848,
-          "rmse": 2.386340203435765,
-          "settling_time": null,
-          "overshoot": 792.6452598387925,
-          "stable": false,
-          "stability_margin": -3363.734224161481,
-          "rise_time": 1.42,
-          "zero_crossings": 83.0,
-          "control_effort": 0.998867224198002,
-          "control_zero_crossings": 253.0,
-          "ss_error": 1.7506268055212613
-        },
-        "run=5": {
-          "mse": 1.8397485851070312,
-          "rmse": 1.3563733207001054,
-          "settling_time": null,
-          "overshoot": 277.37502336834456,
-          "stable": false,
-          "stability_margin": -1856.5960650139896,
-          "rise_time": 1.45,
-          "zero_crossings": 168.0,
-          "control_effort": 0.9975684017655906,
-          "control_zero_crossings": 256.0,
-          "ss_error": 0.6623304052327024
-        }
+        "mse": 1.8397485851070312,
+        "rmse": 1.3563733207001054,
+        "settling_time": null,
+        "overshoot": 277.37502336834456,
+        "stable": false,
+        "stability_margin": -1856.5960650139896,
+        "rise_time": 1.45,
+        "zero_crossings": 168.0,
+        "control_effort": 0.9975684017655906,
+        "control_zero_crossings": 256.0,
+        "ss_error": 0.6623304052327024
       },
       "inverted_pendulum": {
-        "run=1": {
-          "mse": 4.178465451011608,
-          "rmse": 2.044129509353947,
-          "settling_time": null,
-          "overshoot": 366.80109161286,
-          "stable": false,
-          "stability_margin": -3785.1379946830557,
-          "rise_time": 0.18,
-          "zero_crossings": 66.0,
-          "control_effort": 0.9981927325470061,
-          "control_zero_crossings": 316.0,
-          "ss_error": 3.935585172634213
-        },
-        "run=2": {
-          "mse": 3.2587968094141164,
-          "rmse": 1.8052137849612484,
-          "settling_time": null,
-          "overshoot": 517.4794804193698,
-          "stable": false,
-          "stability_margin": -2487.397402096849,
-          "rise_time": 0.03,
-          "zero_crossings": 63.0,
-          "control_effort": 0.9981152448826256,
-          "control_zero_crossings": 340.0,
-          "ss_error": 3.061668127004051
-        },
-        "run=3": {
-          "mse": 2.471882292580798,
-          "rmse": 1.5722220875502284,
-          "settling_time": null,
-          "overshoot": 357.3797447954254,
-          "stable": false,
-          "stability_margin": -1822.022836701201,
-          "rise_time": 0.03,
-          "zero_crossings": 54.0,
-          "control_effort": 0.9978962778855938,
-          "control_zero_crossings": 310.0,
-          "ss_error": 0.7951473214688083
-        },
-        "run=4": {
-          "mse": 4.16172773094021,
-          "rmse": 2.0400313063627746,
-          "settling_time": null,
-          "overshoot": 370.00335444828403,
-          "stable": false,
-          "stability_margin": -3550.131013979756,
-          "rise_time": 0.13,
-          "zero_crossings": 54.0,
-          "control_effort": 0.9996071951279988,
-          "control_zero_crossings": 316.0,
-          "ss_error": 3.7828840155988974
-        },
-        "run=5": {
-          "mse": 22.104136419383938,
-          "rmse": 4.701503633879691,
-          "settling_time": null,
-          "overshoot": 783.6498899723389,
-          "stable": false,
-          "stability_margin": -2686.4701398895077,
-          "rise_time": 0.03,
-          "zero_crossings": 9.0,
-          "control_effort": 0.9935982363934601,
-          "control_zero_crossings": 315.0,
-          "ss_error": 4.409379100084817
-        }
+        "mse": 22.104136419383938,
+        "rmse": 4.701503633879691,
+        "settling_time": null,
+        "overshoot": 783.6498899723389,
+        "stable": false,
+        "stability_margin": -2686.4701398895077,
+        "rise_time": 0.03,
+        "zero_crossings": 9.0,
+        "control_effort": 0.9935982363934601,
+        "control_zero_crossings": 315.0,
+        "ss_error": 4.409379100084817
       }
     }
   },
