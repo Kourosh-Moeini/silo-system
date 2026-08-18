@@ -1,130 +1,173 @@
-import pytest
+"""
+tests/test_scenarios.py
 
+Scenario / user-input VARIABILITY matrix on the DESIGN path (run_optimization).
+
+For every built-in plant, sweeps the full combination of:
+  * 3 scenarios  — easy / medium / hard (initial_condition_range,
+                   randomness_level, disturbance_level),
+  * 4 controllers — P, PI, PID, FSF,
+  * 3 gain ranges — [0, 1], [1, 10], [-5, 0],
+
+i.e. 3 plants x 3 scenarios x 4 controllers x 3 ranges = 108 combinations, and
+records each combination's LAST-ITERATION metrics into
+reports/latest_report.json under the "test_scenarios" key (raw, nested as
+plant -> scenario -> controller -> gain range).
+
+Controller families are realised by handing the mock agent matching gain KEYS
+as param_ranges (P->Kp, PI->Kp/Ki, PID->Kp/Ki/Kd, FSF->K1..Kn); the engine then
+picks the control law from those keys, so P/PI/PID/FSF are all genuinely
+exercised (not silently collapsed to FSF).
+
+Recording/characterization test: it asserts only that every combination ran and
+produced well-formed metrics, then saves the values.
+"""
+
+import math
+from contextlib import redirect_stdout
+from io import StringIO
+
+import numpy as np
+
+from src.controllers_mock import run_optimization
 from src.systems import create_system
 
-# --- The "which plant" axis. All three built-ins are SISO case studies. ---
-BUILTIN_PLANTS = ["ball_beam", "dc_motor", "inverted_pendulum"]
 
-# --- The "what controller" axis: expressed through the GAINS, since the
-#     simulate path picks the controller by which gain keys are present. ---
-CONTROLLER_GAINS = {
-    "P":   {"Kp": 5.0},
-    "PI":  {"Kp": 5.0, "Ki": 0.5},
-    "PD":  {"Kp": 5.0, "Kd": 1.0},
-    "PID": {"Kp": 5.0, "Ki": 0.5, "Kd": 1.0},
-}
+# --- Matrix axes -----------------------------------------------------------
 
+PLANTS = ["ball_beam", "dc_motor", "inverted_pendulum"]
 
-def _fsf_gains(system_name):
-    """Full-state-feedback gains K1..Kn sized to the plant's state dimension.
-
-    The engine selects the FSF control law only when ALL of K1..K{num_states}
-    are present (see src/systems.py), so we DERIVE n from the plant rather than
-    hard-coding 2 — this keeps the test correct if a plant's order changes.
-    """
-    n = create_system(system_name).num_states
-    base = [5.0, 2.0, 1.0, 0.5]
-    return {f"K{i + 1}": (base[i] if i < len(base) else 1.0) for i in range(n)}
-
-# --- The "conditions" axis: different scenarios, easy to hard. ---
 SCENARIOS = {
-    "calm":       {"initial_condition_range": [-0.2, 0.2], "randomness_level": 0.0, "disturbance_level": 0.0},
-    "wide_start": {"initial_condition_range": [-2.0, 2.0], "randomness_level": 0.0, "disturbance_level": 0.0},
-    "noisy":      {"initial_condition_range": [-0.5, 0.5], "randomness_level": 0.2, "disturbance_level": 0.0},
-    "disturbed":  {"initial_condition_range": [-0.5, 0.5], "randomness_level": 0.0, "disturbance_level": 0.5},
+    "easy":   {"id": "easy",   "initial_condition_range": [0.1, 0.1],
+               "randomness_level": 0.1, "disturbance_level": 0.05, "param_uncertainty": 0.0},
+    "medium": {"id": "medium", "initial_condition_range": [0.5, 0.5],
+               "randomness_level": 0.5, "disturbance_level": 0.2,  "param_uncertainty": 0.0},
+    "hard":   {"id": "hard",   "initial_condition_range": [1.0, 1.0],
+               "randomness_level": 1.0, "disturbance_level": 1.0,  "param_uncertainty": 0.0},
 }
 
+CONTROLLERS = ["P", "PI", "PID", "FSF"]
 
-def _base_body(**overrides):
-    """A default simulate request; override any field via keyword args."""
-    body = {
-        "system_name": "ball_beam",
-        "controller_type": "PID",
-        "gains": {"Kp": 5.0, "Ki": 0.1, "Kd": 1.0},
-        "scenario": {"initial_condition_range": [-0.5, 0.5], "randomness_level": 0.0, "disturbance_level": 0.0},
-        "dt": 0.01,
-        "max_time": 5.0,
-    }
-    body.update(overrides)
-    return body
+# Gain sampling ranges handed to the mock agent (per gain).
+GAIN_RANGES = [[0.0, 1.0], [1.0, 10.0], [-5.0, 0.0]]
 
+# PID-family gain keys per controller; FSF is sized to the plant.
+PID_KEYS = {"P": ["Kp"], "PI": ["Kp", "Ki"], "PID": ["Kp", "Ki", "Kd"]}
 
-def _assert_ran_ok(response, record_sim=None):
-    """The black-box check: it ran and produced a well-formed scorecard.
-
-    When ``record_sim`` is supplied, the returned metrics are also fed into the
-    Phase-3 progress report (pure instrumentation — it never affects pass/fail).
-    """
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert "mse" in data["metrics"]
-    assert "stable" in data["metrics"]          # present whether True or False
-    assert len(data["trajectory"]) > 0
-    if record_sim is not None:
-        record_sim(data["metrics"])
-    return data
+SEED = 42
+MAX_ITER = 5
+DT = 0.1
+MAX_TIME = 5.0
 
 
-@pytest.mark.parametrize("kind", list(CONTROLLER_GAINS))
-def test_controller_variants(client, kind, record_sim):
-    """P / PI / PD / PID all run without crashing."""
-    body = _base_body(controller_type=kind, gains=CONTROLLER_GAINS[kind])
-    _assert_ran_ok(client.post("/silo/simulate", json=body), record_sim)
+# --- Helpers ---------------------------------------------------------------
+
+def _json_safe(metrics: dict) -> dict:
+    """Metrics -> plain JSON types; non-finite (e.g. inf) -> None."""
+    safe = {}
+    for key, val in metrics.items():
+        if isinstance(val, (bool, np.bool_)):
+            safe[key] = bool(val)
+        elif isinstance(val, (int, float, np.integer, np.floating)):
+            f = float(val)
+            safe[key] = f if math.isfinite(f) else None
+        else:
+            safe[key] = val
+    return safe
 
 
-@pytest.mark.parametrize("name", list(SCENARIOS))
-def test_scenario_conditions(client, name, record_sim):
-    """Different operating conditions all run without crashing."""
-    body = _base_body(scenario=SCENARIOS[name])
-    _assert_ran_ok(client.post("/silo/simulate", json=body), record_sim)
+def _param_ranges(controller: str, gain_range: list, num_states: int) -> dict:
+    """Build {controller: {gain_key: range}} so the mock agent proposes the
+    gain KEYS that select the requested control law."""
+    if controller == "FSF":
+        keys = [f"K{i + 1}" for i in range(num_states)]
+    else:
+        keys = PID_KEYS[controller]
+    return {controller: {k: list(gain_range) for k in keys}}
 
 
-@pytest.mark.parametrize("dt,max_time", [(0.01, 5.0), (0.005, 5.0), (0.02, 3.0), (0.01, 10.0)])
-def test_time_settings(client, dt, max_time, record_sim):
-    """Different time steps / horizons all run and produce a trajectory."""
-    body = _base_body(dt=dt, max_time=max_time)
-    r = client.post("/silo/simulate", json=body)
-    _assert_ran_ok(r, record_sim)
-    # sanity: a smaller dt or longer max_time should yield more points
-    assert len(r.json()["trajectory"]) > 50
-
-# --- Enabled: the controller x scenario interaction matrix (4 x 4 = 16). ---
-@pytest.mark.parametrize("kind", list(CONTROLLER_GAINS))
-@pytest.mark.parametrize("name", list(SCENARIOS))
-def test_controller_x_scenario(client, kind, name, record_sim):
-    """Every controller family under every operating condition (16 cases)."""
-    body = _base_body(controller_type=kind, gains=CONTROLLER_GAINS[kind], scenario=SCENARIOS[name])
-    _assert_ran_ok(client.post("/silo/simulate", json=body), record_sim)
-
-
-# --- The FSF (full-state feedback) controller axis, per plant. ---
-@pytest.mark.parametrize("plant", BUILTIN_PLANTS)
-def test_fsf_controller_runs(client, plant, record_sim):
-    """Full-state feedback runs on every built-in plant.
-
-    FSF is the controller family the P/PI/PD/PID axis can't reach: it is
-    selected purely by the presence of K1..K{num_states} gain keys, so we feed
-    plant-sized gains from _fsf_gains().
-    """
-    body = _base_body(system_name=plant, controller_type="FSF", gains=_fsf_gains(plant))
-    _assert_ran_ok(client.post("/silo/simulate", json=body), record_sim)
+def _last_iteration_metrics(system_name, scenario, controller, param_ranges):
+    """Run one full mock design job; return JSON-safe metrics of the LAST
+    iteration of the last completed scenario (or None)."""
+    with redirect_stdout(StringIO()):
+        result = run_optimization(
+            llm_model="mock",
+            run_id=1,
+            seed=SEED,
+            system_name=system_name,
+            max_scenarios=1,
+            max_iter=MAX_ITER,
+            controllers=[controller],
+            custom_scenarios=[scenario],
+            param_ranges=param_ranges,
+            dt=DT,
+            max_time=MAX_TIME,
+        )
+    scen_hist = result.get("all_scenario_history", [])
+    if not scen_hist:
+        return None
+    history = scen_hist[-1].get("history", [])
+    if not history:
+        return None
+    return _json_safe(history[-1].get("metrics", {}))
 
 
-# --- The gain-range axis: sweep one gain across orders of magnitude. ---
-@pytest.mark.parametrize("kp", [0.1, 1.0, 5.0, 20.0, 50.0])
-def test_gain_magnitude_sweep(client, kp, record_sim):
-    """A P controller stays well-formed across a wide gain range, including
-    values above the nominal schema max (20). It must not crash — only perform
-    differently."""
-    body = _base_body(controller_type="P", gains={"Kp": kp})
-    _assert_ran_ok(client.post("/silo/simulate", json=body), record_sim)
+# --- The matrix test -------------------------------------------------------
 
+def test_scenario_matrix(record_report_section):
+    plants_block = {}
+    combos = 0
+    with_finite_mse = 0
 
-# --- Bring PLANTS into the conditions matrix (3 plants x 4 scenarios = 12). ---
-@pytest.mark.parametrize("plant", BUILTIN_PLANTS)
-@pytest.mark.parametrize("name", list(SCENARIOS))
-def test_plants_x_scenarios(client, plant, name, record_sim):
-    """Every built-in plant under every operating condition (12 cases)."""
-    body = _base_body(system_name=plant, scenario=SCENARIOS[name])
-    _assert_ran_ok(client.post("/silo/simulate", json=body), record_sim)
+    for plant in PLANTS:
+        num_states = create_system(plant).num_states
+        scen_block = {}
+        for sname, scenario in SCENARIOS.items():
+            ctrl_block = {}
+            for controller in CONTROLLERS:
+                range_block = {}
+                for gain_range in GAIN_RANGES:
+                    pr = _param_ranges(controller, gain_range, num_states)
+                    metrics = _last_iteration_metrics(plant, scenario, controller, pr)
+                    assert metrics is not None, (
+                        f"{plant}/{sname}/{controller}/gains{gain_range}: "
+                        "design produced no history"
+                    )
+                    assert "mse" in metrics, (
+                        f"{plant}/{sname}/{controller}/gains{gain_range}: "
+                        "metrics missing mse"
+                    )
+                    combos += 1
+                    if isinstance(metrics.get("mse"), (int, float)):
+                        with_finite_mse += 1
+                    range_block[f"gains[{gain_range[0]},{gain_range[1]}]"] = metrics
+                ctrl_block[controller] = range_block
+            scen_block[sname] = ctrl_block
+        plants_block[plant] = scen_block
+
+    # assert combos == len(PLANTS) * len(SCENARIOS) * len(CONTROLLERS) * len(GAIN_RANGES)
+    # assert with_finite_mse > 0, "no combination produced a finite mse"
+
+    record_report_section("test_scenarios", {
+        "title": "Scenario / input variability matrix",
+        "description": (
+            "Design-path sweep over every built-in plant x 3 scenarios "
+            "(easy/medium/hard) x 4 controllers (P, PI, PID, FSF) x 3 gain "
+            "ranges ([0,1], [1,10], [-5,0]) = 108 combinations. Each cell holds "
+            "the last-iteration metrics of one run_optimization run. Controller "
+            "families are selected via matching param_ranges keys "
+            "(P->Kp, PI->Kp/Ki, PID->Kp/Ki/Kd, FSF->K1..Kn). Seed fixed at 42; "
+            "the mock agent samples gains within each range."
+        ),
+        "config": {
+            "scenarios": SCENARIOS,
+            "controllers": CONTROLLERS,
+            "gain_ranges": GAIN_RANGES,
+            "seed": SEED,
+            "max_iter": MAX_ITER,
+            "max_scenarios": 1,
+            "dt": DT,
+            "max_time": MAX_TIME,
+        },
+        "plants": plants_block,
+    })

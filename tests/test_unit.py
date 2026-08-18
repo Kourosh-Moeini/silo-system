@@ -12,7 +12,6 @@ import time
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
-from sklearn import metrics
 from api.main import app
 from src.simulation import SimulationRunner
 

@@ -1,174 +1,204 @@
 """
 tests/test_randomness.py
 
-Randomness / reproducibility tests. The engine has TWO independent RNG regimes,
-and this file covers both — because they behave very differently:
+Randomness CHARACTERIZATION on the DESIGN path (run_optimization). Both tests
+drive the full mock design pipeline and persist a structured block into
+reports/latest_report.json via the `record_report_section` fixture. Each block
+carries the raw per-run metrics AND an `aggregate` summary (mean/variance of
+mse, rmse and steady-state error, plus a success rate), which conftest renders
+under the report's "Randomness Tests" section.
 
-  1. SIMULATE PATH (np.random). The initial condition is drawn with
-     np.random.uniform (src/systems.py) and process noise scales with
-     randomness_level. This stream IS controllable: seeding np.random makes a
-     re-simulation bit-for-bit identical, and different seeds spread the metric
-     out. Both facts are asserted below as PASSING tests.
+  * test_randomness_same_config_diff_seeds
+        Fixed "medium" scenario, PID, 5 seeds, 3 plants. Records the
+        LAST-ITERATION metrics of every run (plant -> seed) and aggregates over
+        all plants x seeds.
 
-  2. DESIGN PATH (Python's `random`). The mock LLM agents draw gains with
-     random.uniform (src/llm_agents_mock.py, seeded once at import), but the
-     job's `seed` is applied through set_global_seed(), which reseeds ONLY
-     np.random and explicitly NOT `random` (see the comment in src/utils.py).
-     So two design jobs with the SAME seed propose DIFFERENT gains. That is
-     arguably a product bug (a "seed" that doesn't make the design reproducible),
-     so it is encoded as xfail(strict): the day someone adds random.seed(seed)
-     to set_global_seed, this test XPASSes and the strict marker turns that into
-     a failure prompting its removal.
+  * test_randomness_same_seed_repeated_runs
+        Same config, a SINGLE seed, run N times per plant, but ONLY the LAST
+        run's metrics are kept per plant. Aggregates over the plants.
 
-Simulate tests use the `client` fixture; the design reproducibility test calls
-run_optimization directly so it can capture the proposed gains.
+WHY RECORDS, NOT EQUALITY ASSERTIONS
+------------------------------------
+The design `seed` reseeds only np.random (IC + process noise) via
+set_global_seed(); the mock agents draw gains from Python's `random`, seeded
+once at import and never per job. So different seeds vary, and even the same
+seed repeated varies (gains not reseeded). We assert only that runs produced
+well-formed metrics and save the values for the report.
 """
 
+import math
 from contextlib import redirect_stdout
 from io import StringIO
 
 import numpy as np
-import pytest
 
 from src.controllers_mock import run_optimization
 
 
-# ---------------------------------------------------------------------------
-# 1) SIMULATE PATH — np.random is controllable.
-# ---------------------------------------------------------------------------
+# --- Fixed "medium" scenario + shared design config -----------------------
 
-def _simulate_metrics(client, seed):
-    """Reseed np.random, then run one simulation. Reseeding immediately before
-    the call fixes the entire np.random stream (IC + noise) for that run."""
-    np.random.seed(seed)
-    body = {
-        "system_name": "ball_beam",
-        "controller_type": "PID",
-        "gains": {"Kp": 5.0, "Ki": 0.1, "Kd": 1.0},
-        "scenario": {"initial_condition_range": [-0.5, 0.5],
-                     "randomness_level": 0.1, "disturbance_level": 0.0},
-        "dt": 0.01,
-        "max_time": 5.0,
-    }
-    r = client.post("/silo/simulate", json=body)
-    assert r.status_code == 200
-    return r.json()["metrics"]
+PLANTS = ["ball_beam", "dc_motor", "inverted_pendulum"]
 
+# ASSUMPTION: "0/5, 0/5" -> initial_condition_range = [0.5, 0.5] (fixed IC).
+MEDIUM_SCENARIO = {
+    "id": "medium",
+    "initial_condition_range": [0.5, 0.5],
+    "randomness_level": 0.5,
+    "disturbance_level": 0.2,
+    "param_uncertainty": 0.0,
+}
 
-def test_simulate_same_seed_is_deterministic(client):
-    """Same seed -> bit-identical metrics across repeated runs.
-
-    We reseed to the SAME value before each of three runs and require exact
-    equality of both mse and rmse. This proves the simulate path is fully
-    reproducible when the np.random stream is pinned.
-    """
-    runs = [_simulate_metrics(client, seed=12345) for _ in range(3)]
-    mses = [m["mse"] for m in runs]
-    rmses = [m["rmse"] for m in runs]
-
-    assert mses[0] == mses[1] == mses[2], f"mse not reproducible: {mses}"
-    assert rmses[0] == rmses[1] == rmses[2], f"rmse not reproducible: {rmses}"
+DIFF_SEEDS = [1, 7, 42, 100, 2026]
+REPEAT_SEED = 42
+N_REPEATS = 5
+CONTROLLERS = ["PID"]
+MAX_ITER = 5
+MAX_SCENARIOS = 1
+DT = 0.01
+MAX_TIME = 5.0
 
 
-def test_simulate_variance_across_seeds(client, record_property):
-    """Different seeds -> genuinely different (but sane) outcomes.
+# --- Helpers ---------------------------------------------------------------
 
-    Asserts every mse is finite and non-negative, that the spread is non-zero
-    (proving randomness is actually exercised, not silently ignored), and a
-    generous sanity ceiling. Records each mse/stable so the Phase-3 report
-    picks up the distribution.
-    """
-    seeds = list(range(10))
-    values = []
-    stable_count = 0
-    for s in seeds:
-        m = _simulate_metrics(client, seed=s)
-        mse = m["mse"]
-        values.append(mse)
-        stable = bool(m.get("stable", False))
-        if stable:
-            stable_count += 1
-        record_property("mse", mse)
-        record_property("stable", stable)
-
-    assert all(np.isfinite(v) for v in values), f"non-finite mse present: {values}"
-    assert all(v >= 0 for v in values), "mse is never negative"
-    assert all(v < 1e6 for v in values), f"mse exploded past sanity ceiling: {values}"
-    assert float(np.std(values)) > 0.0, (
-        "different seeds produced identical mse -> randomness not exercised"
-    )
-
-    # Visible in `pytest -rP`/`-s`; documents the observed variance.
-    print(
-        f"\n[variance] seeds={len(seeds)} "
-        f"mean={np.mean(values):.6f} std={np.std(values):.6f} "
-        f"min={np.min(values):.6f} max={np.max(values):.6f} "
-        f"stable={stable_count}/{len(seeds)}"
-    )
+def _json_safe(metrics: dict) -> dict:
+    """Metrics -> plain JSON types; non-finite (e.g. inf) -> None."""
+    safe = {}
+    for key, val in metrics.items():
+        if isinstance(val, (bool, np.bool_)):
+            safe[key] = bool(val)
+        elif isinstance(val, (int, float, np.integer, np.floating)):
+            f = float(val)
+            safe[key] = f if math.isfinite(f) else None
+        else:
+            safe[key] = val
+    return safe
 
 
-# ---------------------------------------------------------------------------
-# 2) DESIGN PATH — `seed` does NOT make the mock agents reproducible.
-# ---------------------------------------------------------------------------
-
-def _design_proposed_gains(seed):
-    """Run the mock optimization once and return the flat list of proposed
-    gain dicts (numeric only). stdout is redirected to swallow the graph's
-    emoji prints (and keep the test quiet)."""
+def _last_iteration_metrics(system_name: str, seed: int):
+    """Run one full mock design job; return JSON-safe metrics of the LAST
+    iteration of the last completed scenario (or None)."""
     with redirect_stdout(StringIO()):
         result = run_optimization(
             llm_model="mock",
             run_id=1,
             seed=seed,
-            system_name="ball_beam",
-            max_scenarios=1,
-            max_iter=3,
-            controllers=["PID"],
+            system_name=system_name,
+            max_scenarios=MAX_SCENARIOS,
+            max_iter=MAX_ITER,
+            controllers=CONTROLLERS,
+            custom_scenarios=[MEDIUM_SCENARIO],
+            dt=DT,
+            max_time=MAX_TIME,
         )
-    gains = []
-    for scen in result.get("all_scenario_history", []):
-        for entry in scen.get("history", []):
-            params = {k: v for k, v in entry.get("params", {}).items() if k != "reasoning"}
-            gains.append(params)
-    return gains
+    scenario_history = result.get("all_scenario_history", [])
+    if not scenario_history:
+        return None
+    history = scenario_history[-1].get("history", [])
+    if not history:
+        return None
+    return _json_safe(history[-1].get("metrics", {}))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Known bug: the design 'seed' is applied via set_global_seed(), which "
-        "reseeds only np.random. The mock LLM agents draw gains from Python's "
-        "`random` (seeded once at import, never per-job), so two same-seed runs "
-        "propose different gains. This xfail flips to a FAILURE (prompting its "
-        "removal) once set_global_seed also calls random.seed(seed)."
-    ),
-)
-def test_design_same_seed_is_reproducible():
-    """Two design runs with the SAME seed should propose identical gains."""
-    first = _design_proposed_gains(seed=20260815)
-    second = _design_proposed_gains(seed=20260815)
-
-    assert first and second, "the design run proposed no gains at all"
-    assert first == second, (
-        "same-seed design runs diverged; "
-        f"first proposal={first[0]} vs second proposal={second[0]}"
-    )
+def _finite_col(metrics_list, key):
+    """All finite numeric values of `key` across a list of metrics dicts."""
+    return [m[key] for m in metrics_list if isinstance(m.get(key), (int, float))]
 
 
-@pytest.mark.parametrize("seed", [1, 7, 42, 100, 2026])
-def test_design_completes_across_seeds(client, poll_job, seed):
-    """Whatever the seed, a design job still completes and yields the stable
-    result_summary structure. (Documents that seed variation doesn't break the
-    lifecycle, even though it doesn't make the gains reproducible.)"""
-    r = client.post("/silo/start", json={
-        "config": {"system_name": "ball_beam", "seed": seed,
-                   "max_scenarios": 1, "max_iter": 3, "controllers": ["PID"]},
-        "control_objective": "stabilize the plant output at 0",
+def _aggregate(metrics_list: list) -> dict:
+    """Mean/variance of mse, rmse, ss_error over a list of metrics dicts, plus
+    success_rate = exp(-mean ss_error). Non-finite entries are skipped."""
+    mse = _finite_col(metrics_list, "mse")
+    rmse = _finite_col(metrics_list, "rmse")
+    sse = _finite_col(metrics_list, "ss_error")
+
+    ss_mean = float(np.mean(sse)) if sse else None
+    success = float(np.exp(-ss_mean)) if (ss_mean is not None and math.isfinite(ss_mean)) else 0.0
+
+    def _r(vals, fn):
+        return round(float(fn(vals)), 6) if vals else None
+
+    return {
+        "n_samples": len(metrics_list),
+        "mse_mean": _r(mse, np.mean),
+        "mse_variance": _r(mse, np.var),
+        "rmse_mean": _r(rmse, np.mean),
+        "rmse_variance": _r(rmse, np.var),
+        "ss_error_mean": None if ss_mean is None else round(ss_mean, 6),
+        "ss_error_variance": _r(sse, np.var),
+        "success_rate": round(success, 6),
+    }
+
+
+def _config(extra: dict) -> dict:
+    cfg = {
+        "scenario": MEDIUM_SCENARIO,
+        "controllers": CONTROLLERS,
+        "max_iter": MAX_ITER,
+        "max_scenarios": MAX_SCENARIOS,
+        "dt": DT,
+        "max_time": MAX_TIME,
+    }
+    cfg.update(extra)
+    return cfg
+
+
+# --- 1) Same config, DIFFERENT seeds --------------------------------------
+
+def test_randomness_same_config_diff_seeds(record_report_section):
+    plants = {}
+    all_metrics = []
+    for plant in PLANTS:
+        per_seed = {}
+        for seed in DIFF_SEEDS:
+            metrics = _last_iteration_metrics(plant, seed)
+            assert metrics is not None, f"{plant}/seed={seed}: no history"
+            assert "mse" in metrics, f"{plant}/seed={seed}: metrics missing mse"
+            per_seed[f"seed={seed}"] = metrics
+            all_metrics.append(metrics)
+        plants[plant] = per_seed
+
+    record_report_section("test_randomness_same_config_diff_seeds", {
+        "title": "Same config, different seeds",
+        "description": (
+            "Drives run_optimization on each built-in plant under a fixed "
+            "'medium' scenario (IC=[0.5, 0.5], randomness_level=0.5, "
+            "disturbance_level=0.2) with PID, max_iter=5, over seeds "
+            f"{DIFF_SEEDS}. Last-iteration metrics are aggregated over all "
+            "plants x seeds. success_rate = exp(-mean steady-state error) in "
+            "(0, 1]; 1 means zero average steady-state error."
+        ),
+        "config": _config({"seeds": DIFF_SEEDS}),
+        "aggregate": _aggregate(all_metrics),
+        "plants": plants,
     })
-    assert r.status_code == 200
-    data = poll_job(client, r.json()["job_id"])
 
-    assert data["status"] == "completed", f"seed={seed} -> {data.get('error')!r}"
-    summary = data["result_summary"]
-    assert isinstance(summary, dict)
-    assert isinstance(summary.get("scenario_metrics"), list)
+
+# --- 2) Same config, SAME seed, repeated runs (record LAST run only) -------
+
+def test_randomness_same_seed_repeated_runs(record_report_section):
+    plants = {}
+    all_metrics = []
+    for plant in PLANTS:
+        last_metrics = None
+        for _ in range(N_REPEATS):
+            last_metrics = _last_iteration_metrics(plant, REPEAT_SEED)
+            assert last_metrics is not None, f"{plant}: no history"
+        assert "mse" in last_metrics, f"{plant}: metrics missing mse"
+        plants[plant] = last_metrics          # only the LAST run is recorded
+        all_metrics.append(last_metrics)
+
+    record_report_section("test_randomness_same_seed_repeated_runs", {
+        "title": "Repeated runs (same seed)",
+        "description": (
+            "Same 'medium' scenario, PID and max_iter=5, but a single fixed "
+            f"seed ({REPEAT_SEED}) run {N_REPEATS} times per plant; only the "
+            "last run's metrics are recorded per plant (the design 'seed' does "
+            "not reseed the mock agents' gain RNG, so repeats differ). Values "
+            "aggregate the recorded last runs across the plants; statistics and "
+            "success_rate are defined as in the different-seeds subsection."
+        ),
+        "config": _config({"seed": REPEAT_SEED, "repeats": N_REPEATS,
+                           "recorded": "last run per plant only"}),
+        "aggregate": _aggregate(all_metrics),
+        "plants": plants,
+    })

@@ -4,8 +4,9 @@ from api.main import app
 
 client = TestClient(app)
 
+
 @pytest.mark.parametrize("system_name", ["ball_beam", "dc_motor", "inverted_pendulum"])
-def test_simulate_builtin_plants(system_name, record_property):
+def test_simulate_builtin_plants(system_name):
     body = {
         "system_name": system_name,
         "controller_type": "PID",
@@ -20,8 +21,3 @@ def test_simulate_builtin_plants(system_name, record_property):
     assert data["success"] is True
     assert "mse" in data["metrics"]
     assert len(data["trajectory"]) > 0
-
-# Attach metrics to the Pytest report
-    record_property("mse", data["metrics"].get("mse", 0.0))
-    record_property("settling_time", data["metrics"].get("settling_time", 0.0))
-    record_property("stable", data["metrics"].get("stable", False))
