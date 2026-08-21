@@ -1,20 +1,22 @@
-"""Shared pytest fixtures + the progress-report generator.
+"""Shared pytest fixtures and the raw-artifact recorder.
 
-Running `pytest tests/ -q` writes three artifacts under reports/ as a side
-effect of the session hooks below:
+`pytest tests/ -q` writes these files into reports/latest_results/ — RAW facts
+only, no analysis and no figures:
 
-  * reports/latest_report.json — machine-readable snapshot of THIS run.
-  * reports/report.md          — the same snapshot, human-readable.
-  * reports/baseline.json      — a blessed reference the report is compared
-                                 against (pass-rate trend). Re-bless with
-                                 `--bless-baseline` (or SILO_BLESS_BASELINE=1).
+    sanity_check.json             pass/fail counts per category + pass rate
+    test_scenario_report.json     the scenario-matrix runs
+    test_randomness_report.json   the randomness characterization data
 
-The report contains:
-  * pass/fail counts by category (one bucket per test module),
-  * wall time,
-  * a pass-rate delta vs the blessed baseline,
-  * any custom characterization blocks a test attaches via the
-    `record_report_section` fixture (e.g. the randomness metrics).
+reports/latest_results_baseline/ holds a blessed mirror of the same files, used
+for the pass-rate trend. It is seeded on the first run and refreshed only with
+`--bless-baseline` (or SILO_BLESS_BASELINE=1), so trends stay meaningful.
+
+`python reports/make_report.py` then turns reports/latest_results/ into
+reports/report.md and the plots under reports/plots/.
+
+A test contributes its own artifact through the `record_report` fixture:
+
+    record_report("test_scenario_report", {"runs": [...]})
 """
 
 from __future__ import annotations
@@ -23,7 +25,6 @@ import json
 import os
 import time
 from collections import defaultdict
-import math
 
 import pytest
 from fastapi.testclient import TestClient
@@ -31,16 +32,18 @@ from fastapi.testclient import TestClient
 from api.main import app
 
 # ---------------------------------------------------------------------------
-# Paths & category taxonomy
+# Paths
 # ---------------------------------------------------------------------------
 
 REPORTS_DIR = "reports"
-LATEST_PATH = os.path.join(REPORTS_DIR, "latest_report.json")
-BASELINE_PATH = os.path.join(REPORTS_DIR, "baseline.json")
-MARKDOWN_PATH = os.path.join(REPORTS_DIR, "report.md")
+LATEST_DIR = os.path.join(REPORTS_DIR, "latest_results")
+BASELINE_DIR = os.path.join(REPORTS_DIR, "latest_results_baseline")
+SANITY_FILE = "sanity_check.json"
 
-# Display order for known categories; unknown modules auto-categorize by name.
-CATEGORY_ORDER = ["unit", "simulate", "design", "randomness", "failure", "fixtures"]
+# ---------------------------------------------------------------------------
+# Category taxonomy — one bucket per test module
+# ---------------------------------------------------------------------------
+
 CATEGORY_BY_MODULE = {
     "test_unit": "unit",
     "test_simulate": "simulate",
@@ -51,189 +54,30 @@ CATEGORY_BY_MODULE = {
     "test_user_fixtures": "fixtures",
 }
 
-# Top-level snapshot keys that are NOT custom characterization blocks.
-_RESERVED_KEYS = {
-    "generated_at", "wall_time_seconds", "summary",
-    "pass_rate_percent", "categories", "baseline_comparison",
-}
+# Display order; any unlisted module is appended alphabetically.
+CATEGORY_ORDER = [
+    "unit", "simulate", "scenario", "design", "randomness", "failure", "fixtures",
+]
 
-# ---------------------------------------------------------------------------
-# Scenario matrix: complexity rate, success rate, and report plots
-# ---------------------------------------------------------------------------
-
-PLOTS_DIR = os.path.join(REPORTS_DIR, "plots")
-
-# Matrix axes, ordered EASY -> HARD (must match the keys test_scenarios records).
-SCEN_SCENARIOS   = ["easy", "medium", "hard"]      # list of 3
-SCEN_CONTROLLERS = ["P", "PI", "PID", "FSF"]        # list of 4
-
-# gain-range label -> exact key stored in the report JSON.
-SCEN_GAIN_KEY = {
-    "[0, 1]":  "gains[0.0,1.0]",
-    "[1, 10]": "gains[1.0,10.0]",
-    "[-5, 0]": "gains[-5.0,0.0]",
-}
-# Gains in the COMPLEXITY / SUCCESS analysis: size 2, [-5,0] excluded (it's a different thing).
-SCEN_COMPLEXITY_GAINS = ["[0, 1]", "[1, 10]"]       # easy -> hard
-# All three gain ranges are used only for the control-effort plot.
-SCEN_ALL_GAINS = ["[0, 1]", "[1, 10]", "[-5, 0]"]
-
-# Weights (sum to 1.0): scenario 0.5, controller 0.2, gain 0.3.
-SCEN_WEIGHTS = {"scenario": 0.50, "controller": 0.20, "gain": 0.30}
+OUTCOMES = ("passed", "failed", "skipped", "xfailed", "xpassed")
 
 
-def _scen_complexity(si: int, ci: int, gi: int, n_gain: int) -> float:
-    """Index-normalize each axis to 0..1, weight, and sum."""
-    norm_s = si / (len(SCEN_SCENARIOS) - 1)     # 3 items -> denom 2
-    norm_c = ci / (len(SCEN_CONTROLLERS) - 1)   # 4 items -> denom 3
-    norm_g = gi / (n_gain - 1)                  # 2 items -> denom 1
-    score = (norm_s * SCEN_WEIGHTS["scenario"]
-             + norm_c * SCEN_WEIGHTS["controller"]
-             + norm_g * SCEN_WEIGHTS["gain"])
-    return round(score, 4)
-
-
-def _analyze_scenarios_and_plot(snap: dict):
-    """Augment the test_scenarios cells with complexity + success_rate, write
-    PNG plots under reports/plots/, and stash a summary at
-    snap['test_scenarios']['analysis']. No-op if the section is absent."""
-    section = snap.get("test_scenarios")
-    if not isinstance(section, dict) or "plants" not in section:
-        return None
-
-    import matplotlib
-    matplotlib.use("Agg")               # headless: write files, never open a window
-    import matplotlib.pyplot as plt
-
-    plants = section["plants"]
-    plant_names = list(plants.keys())
-    os.makedirs(PLOTS_DIR, exist_ok=True)
-
-    per_plant = {p: {"x": [], "y": []} for p in plant_names}
-    combo_success = defaultdict(list)     # (scenario, controller, gain) -> [success per plant]
-    combo_complexity = {}                 # (scenario, controller, gain) -> complexity
-    effort_by_gain = defaultdict(list)    # gain label -> [control_effort over everything]
-
-    n_gain = len(SCEN_COMPLEXITY_GAINS)
-    for p in plant_names:
-        for si, s in enumerate(SCEN_SCENARIOS):
-            for ci, c in enumerate(SCEN_CONTROLLERS):
-                # complexity + success: only the two participating gain ranges
-                for gi, glabel in enumerate(SCEN_COMPLEXITY_GAINS):
-                    cell = plants.get(p, {}).get(s, {}).get(c, {}).get(SCEN_GAIN_KEY[glabel])
-                    if not isinstance(cell, dict):
-                        continue
-                    comp = _scen_complexity(si, ci, gi, n_gain)
-                    cell["complexity"] = comp
-                    ss = cell.get("ss_error")
-                    if ss is None:
-                        continue
-                    success = math.exp(-ss)
-                    cell["success_rate"] = round(success, 6)
-                    per_plant[p]["x"].append(comp)
-                    per_plant[p]["y"].append(success)
-                    combo = (s, c, glabel)
-                    combo_success[combo].append(success)
-                    combo_complexity[combo] = comp
-                # control effort: all three gain ranges (incl. [-5,0])
-                for glabel in SCEN_ALL_GAINS:
-                    cell = plants.get(p, {}).get(s, {}).get(c, {}).get(SCEN_GAIN_KEY[glabel])
-                    if isinstance(cell, dict) and cell.get("control_effort") is not None:
-                        effort_by_gain[glabel].append(cell["control_effort"])
-
-    plots = {}
-
-    # 1) per-plant: complexity vs success rate
-    per_plant_paths = {}
-    for p in plant_names:
-        fig, ax = plt.subplots(figsize=(7, 5))
-        ax.scatter(per_plant[p]["x"], per_plant[p]["y"], s=45, alpha=0.8)
-        ax.set_xlabel("Complexity rate")
-        ax.set_ylabel("Success rate = exp(-ss_error)")
-        ax.set_title(f"{p}: complexity vs success rate")
-        ax.grid(True, alpha=0.3)
-        fname = f"scenario_{p}_complexity_vs_success.png"
-        fig.tight_layout(); fig.savefig(os.path.join(PLOTS_DIR, fname), dpi=150); plt.close(fig)
-        per_plant_paths[p] = f"plots/{fname}"
-    plots["per_plant"] = per_plant_paths
-
-    # 2) all plants: complexity vs MEAN success rate (mean over plants, per combination)
-    combos_sorted = sorted(combo_complexity, key=lambda k: combo_complexity[k])
-    xs = [combo_complexity[k] for k in combos_sorted]
-    ys = [sum(combo_success[k]) / len(combo_success[k]) for k in combos_sorted]
-    fig, ax = plt.subplots(figsize=(7, 5))
-    ax.scatter(xs, ys, s=45, alpha=0.8, color="tab:red")
-    ax.set_xlabel("Complexity rate")
-    ax.set_ylabel("Mean success rate (over all plants)")
-    ax.set_title("Complexity vs mean success rate — all plants")
-    ax.grid(True, alpha=0.3)
-    fname = "scenario_all_plants_complexity_vs_mean_success.png"
-    fig.tight_layout(); fig.savefig(os.path.join(PLOTS_DIR, fname), dpi=150); plt.close(fig)
-    plots["all_plants_mean"] = f"plots/{fname}"
-
-    # 3) mean control effort by gain range (incl. [-5,0])
-    labels = [g for g in SCEN_ALL_GAINS if effort_by_gain[g]]
-    means = [sum(effort_by_gain[g]) / len(effort_by_gain[g]) for g in labels]
-    fig, ax = plt.subplots(figsize=(7, 5))
-    bars = ax.bar(labels, means, color=["tab:blue", "tab:orange", "tab:green"][:len(labels)])
-    ax.bar_label(bars, fmt="%.4f")
-    ax.set_xlabel("Gain range")
-    ax.set_ylabel("Mean control effort (all plants/scenarios/controllers)")
-    ax.set_title("Mean control effort by gain range")
-    ax.grid(True, axis="y", alpha=0.3)
-    fname = "scenario_control_effort_by_gain.png"
-    fig.tight_layout(); fig.savefig(os.path.join(PLOTS_DIR, fname), dpi=150); plt.close(fig)
-    plots["control_effort"] = f"plots/{fname}"
-
-    section["analysis"] = {
-        "weights": SCEN_WEIGHTS,
-        "complexity_gains": SCEN_COMPLEXITY_GAINS,
-        "combinations_sorted": [
-            {"scenario": s, "controller": c, "gain": g,
-             "complexity": combo_complexity[(s, c, g)],
-             "mean_success": round(sum(combo_success[(s, c, g)]) / len(combo_success[(s, c, g)]), 6)}
-            for (s, c, g) in combos_sorted
-        ],
-        "mean_control_effort_by_gain": {
-            g: round(sum(effort_by_gain[g]) / len(effort_by_gain[g]), 6) for g in labels
-        },
-        "plots": plots,
-    }
-    return section["analysis"]
-
-
-def _render_scenario_section(snap: dict, lines: list) -> None:
-    """Embed the scenario plots + a small table into report.md (alongside the
-    randomness section). No-op unless _analyze_scenarios_and_plot ran."""
-    analysis = (snap.get("test_scenarios") or {}).get("analysis")
-    if not analysis:
-        return
-    lines += [
-        "", "## Scenario Complexity vs Success",
-        "Complexity rate = index-normalized, weighted blend of scenario (0.5), "
-        "controller (0.2) and gain-range (0.3) difficulty; the [-5,0] gain range is "
-        "excluded here (treated separately). Success rate = exp(-steady-state error).",
-    ]
-    for p, path in analysis["plots"].get("per_plant", {}).items():
-        lines += ["", f"### {p}: complexity vs success rate", "", f"![{p}]({path})"]
-    if analysis["plots"].get("all_plants_mean"):
-        lines += ["", "### All plants: complexity vs mean success rate", "",
-                  f"![all plants]({analysis['plots']['all_plants_mean']})"]
-    if analysis["plots"].get("control_effort"):
-        lines += ["", "### Mean control effort by gain range", "",
-                  f"![control effort]({analysis['plots']['control_effort']})"]
-    ce = analysis.get("mean_control_effort_by_gain", {})
-    if ce:
-        lines += ["", "| Gain range | Mean control effort |", "|---|---|"]
-        lines += [f"| {g} | {v} |" for g, v in ce.items()]
-
-def _category_for(item) -> str:
+def _category_of(item) -> str:
     """Map a pytest item to its report category (deterministic, no 'other')."""
-    path = str(item.location[0]).replace("\\", "/")
-    stem = os.path.splitext(os.path.basename(path))[0]
+    stem = os.path.splitext(os.path.basename(str(item.location[0]).replace("\\", "/")))[0]
     if stem in CATEGORY_BY_MODULE:
         return CATEGORY_BY_MODULE[stem]
     return stem[len("test_"):] if stem.startswith("test_") else (stem or "uncategorized")
+
+
+# ---------------------------------------------------------------------------
+# Collected state (module level so the session hooks can reach it)
+# ---------------------------------------------------------------------------
+
+_summary = dict.fromkeys(OUTCOMES, 0)
+_per_category = defaultdict(lambda: dict.fromkeys(OUTCOMES, 0))
+_recorded_reports: dict[str, dict] = {}
+_start_time = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -246,30 +90,13 @@ def client():
     return TestClient(app)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _force_utf8_stdout():
-    """Make stdout/stderr UTF-8 for the whole session.
-
-    The mock design graph prints emoji from a worker thread; on a Windows
-    cp1252 console under `pytest -s` those writes would raise UnicodeEncodeError
-    and fail the design job. Reconfigure once, best-effort (no-op under capture).
-    """
-    import sys
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
-            pass
-    yield
-
-
 @pytest.fixture
 def poll_job():
-    """Return a helper that polls a design job until a terminal state.
+    """Return a helper that polls a design job until it reaches a terminal state.
 
         data = poll_job(client, job_id)   # blocks until completed/failed/cancelled
     """
-    def _poll_until_terminal(client, job_id, timeout=30.0, interval=0.05):
+    def _poll(client, job_id, timeout=30.0, interval=0.05):
         deadline = time.time() + timeout
         data = None
         while time.time() < deadline:
@@ -281,22 +108,38 @@ def poll_job():
             f"Job {job_id} did not reach a terminal state within {timeout}s; "
             f"last status={(data or {}).get('status')!r}"
         )
-    return _poll_until_terminal
+    return _poll
 
 
 @pytest.fixture
-def record_report_section():
-    """Persist an arbitrary JSON-serialisable block into the final report.
+def record_report():
+    """Merge a JSON-serialisable block into reports/<name>.json.
 
-    Characterization tests (e.g. randomness) use this to save structured
-    config + metrics under a named top-level key in reports/latest_report.json.
-    Pure instrumentation: it never affects a test's pass/fail outcome.
-
-        record_report_section("my_block", {"config": {...}, "plants": {...}})
+    Characterization tests use this to save their raw results; the block is
+    written once at the end of the session. Calling it twice with the same
+    `name` merges the top-level keys, so several tests can share one artifact.
+    Pure instrumentation — it never affects a test's pass/fail outcome.
     """
     def _record(name: str, payload: dict) -> None:
-        report_data["custom_sections"][name] = payload
+        _recorded_reports.setdefault(name, {}).update(payload)
     return _record
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _force_utf8_stdout():
+    """Make stdout/stderr UTF-8 for the whole session.
+
+    The mock design graph prints emoji from a worker thread; on a Windows cp1252
+    console under `pytest -s` those writes would raise UnicodeEncodeError and
+    fail the design job. Reconfigure once, best-effort (no-op under capture).
+    """
+    import sys
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+    yield
 
 
 # ---------------------------------------------------------------------------
@@ -313,44 +156,26 @@ def pytest_addoption(parser):
 
 
 # ---------------------------------------------------------------------------
-# Accumulation
+# Outcome accumulation
 # ---------------------------------------------------------------------------
 
-report_data = {
-    "summary": {"passed": 0, "failed": 0, "skipped": 0, "xfailed": 0, "xpassed": 0},
-    "categories": defaultdict(
-        lambda: {"passed": 0, "failed": 0, "skipped": 0, "xfailed": 0, "xpassed": 0}
-    ),
-    "custom_sections": {},
-    "wall_time": 0.0,
-}
-start_time = 0.0
+def _outcome_of(report) -> str | None:
+    """Classify one completed test phase into exactly one outcome bucket."""
+    expected_failure = hasattr(report, "wasxfail")
 
-
-def pytest_sessionstart(session):
-    global start_time
-    start_time = time.time()
-    os.makedirs(REPORTS_DIR, exist_ok=True)
-
-
-def _bucket_for(report) -> str | None:
-    """Classify one completed test phase into exactly one summary bucket."""
-    wasxfail = hasattr(report, "wasxfail")
     if report.when == "call":
-        if wasxfail and report.skipped:
-            return "xfailed"       # expected failure occurred
-        if wasxfail and report.passed:
-            return "xpassed"       # xfail marker but it passed
+        if expected_failure:
+            return "xfailed" if report.skipped else "xpassed" if report.passed else "failed"
         if report.passed:
             return "passed"
         if report.failed:
-            return "failed"        # incl. strict XPASS
+            return "failed"
         if report.skipped:
             return "skipped"
     elif report.when in ("setup", "teardown"):
         if report.failed:
-            return "failed"        # a setup/collection error is a real failure
-        if report.skipped and not wasxfail:
+            return "failed"            # a setup/collection error is a real failure
+        if report.skipped and not expected_failure:
             return "skipped"
     return None
 
@@ -358,138 +183,57 @@ def _bucket_for(report) -> str | None:
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     outcome = yield
-    report = outcome.get_result()
-    bucket = _bucket_for(report)
-    if bucket is None:
-        return
-    report_data["summary"][bucket] += 1
-    report_data["categories"][_category_for(item)][bucket] += 1
+    bucket = _outcome_of(outcome.get_result())
+    if bucket:
+        _summary[bucket] += 1
+        _per_category[_category_of(item)][bucket] += 1
 
 
 # ---------------------------------------------------------------------------
-# Snapshot / report building
+# Sanity-check snapshot
 # ---------------------------------------------------------------------------
 
-def _pass_rate(summary) -> float:
+def _pass_rate(summary: dict) -> float:
     executed = summary["passed"] + summary["failed"]
     return round(100.0 * summary["passed"] / executed, 2) if executed else 100.0
 
 
 def _ordered_categories() -> dict:
-    cats = report_data["categories"]
-    ordered = {name: dict(cats[name]) for name in CATEGORY_ORDER if name in cats}
-    for name in sorted(cats):
-        ordered.setdefault(name, dict(cats[name]))
+    ordered = {name: dict(_per_category[name])
+               for name in CATEGORY_ORDER if name in _per_category}
+    for name in sorted(_per_category):
+        ordered.setdefault(name, dict(_per_category[name]))
     return ordered
 
 
-def _build_snapshot() -> dict:
-    summary = dict(report_data["summary"])
+def _build_sanity_check(wall_time: float) -> dict:
+    summary = dict(_summary)
     summary["total"] = sum(summary.values())
-
-    snapshot = {
+    return {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "wall_time_seconds": report_data["wall_time"],
+        "wall_time_seconds": wall_time,
         "summary": summary,
         "pass_rate_percent": _pass_rate(summary),
         "categories": _ordered_categories(),
     }
-    # Merge custom characterization blocks (e.g. randomness) as top-level keys.
-    for name, payload in report_data["custom_sections"].items():
-        if name not in snapshot:
-            snapshot[name] = payload
-    return snapshot
 
 
-def _compare_to_baseline(current, baseline) -> dict:
-    cur = current.get("pass_rate_percent")
-    base = baseline.get("pass_rate_percent")
-    delta = None if cur is None or base is None else round(cur - base, 2)
+def _compare_to_baseline(current: dict, baseline: dict) -> dict:
+    current_rate = current.get("pass_rate_percent")
+    baseline_rate = baseline.get("pass_rate_percent")
+    delta = (None if current_rate is None or baseline_rate is None
+             else round(current_rate - baseline_rate, 2))
     return {
         "baseline_generated_at": baseline.get("generated_at"),
         "pass_rate_delta": delta,
     }
 
 
-def _render_markdown(snap: dict) -> str:
-    s = snap["summary"]
-    lines = [
-        "# Test Suite Progress Report",
-        f"_Generated: {snap['generated_at']} · Wall time: {snap['wall_time_seconds']}s_",
-        "",
-        "## Summary",
-        f"- Passed: {s['passed']}",
-        f"- Failed: {s['failed']}",
-        f"- Skipped: {s['skipped']}",
-        f"- XFailed (known gaps): {s['xfailed']}",
-        f"- XPassed: {s['xpassed']}",
-        f"- Pass rate: {snap['pass_rate_percent']}%",
-        "",
-        "## Results by Category",
-        "| Category | Passed | Failed | Skipped | XFail |",
-        "|---|---|---|---|---|",
-    ]
-    for name, c in snap["categories"].items():
-        lines.append(f"| {name} | {c['passed']} | {c['failed']} | {c['skipped']} | {c['xfailed']} |")
+# ---------------------------------------------------------------------------
+# JSON helpers
+# ---------------------------------------------------------------------------
 
-    cmp_ = snap.get("baseline_comparison") or {}
-    lines += ["", "## Baseline Comparison"]
-    if cmp_.get("status") == "seeded":
-        lines.append("- Baseline seeded from this run (no prior reference).")
-    elif cmp_:
-        lines += [
-            f"- Baseline: {cmp_.get('baseline_generated_at')}",
-            f"- Pass-rate delta: {cmp_.get('pass_rate_delta')}%",
-        ]
-    else:
-        lines.append("- No baseline available.")
-
-    _render_custom_sections(snap, lines)
-    _render_scenario_section(snap, lines)       # <-- add this line
-    return "\n".join(lines) + "\n"
-
-
-def _render_custom_sections(snap: dict, lines: list) -> None:
-    """Render blocks attached via record_report_section.
-
-    Blocks that carry an 'aggregate' summary (the randomness tests) are shown
-    under 'Randomness Tests' as subsections with a stats table; the raw
-    per-plant/seed data stays in latest_report.json. Any other custom blocks
-    are listed as pointers.
-    """
-    customs = [(k, v) for k, v in snap.items()
-               if k not in _RESERVED_KEYS and isinstance(v, dict)]
-    aggregated = [(k, v) for k, v in customs if "aggregate" in v]
-    plain = [k for k, v in customs if "aggregate" not in v]
-
-    if aggregated:
-        lines += ["", "## Randomness Tests"]
-        for key, sec in aggregated:
-            lines += ["", f"### {sec.get('title', key)}"]
-            if sec.get("description"):
-                lines += [sec["description"], ""]
-            agg = sec["aggregate"]
-            lines += [
-                "| Statistic | Value |",
-                "|---|---|",
-                f"| Samples | {agg.get('n_samples')} |",
-                f"| MSE mean | {agg.get('mse_mean')} |",
-                f"| MSE variance | {agg.get('mse_variance')} |",
-                f"| RMSE mean | {agg.get('rmse_mean')} |",
-                f"| RMSE variance | {agg.get('rmse_variance')} |",
-                f"| Steady-state error mean | {agg.get('ss_error_mean')} |",
-                f"| Steady-state error variance | {agg.get('ss_error_variance')} |",
-                f"| Success rate = exp(-mean SSE) | {agg.get('success_rate')} |",
-                "",
-                "_Per-plant/seed raw metrics are in latest_report.json._",
-            ]
-
-    if plain:
-        lines += ["", "## Characterization Data (see latest_report.json)"]
-        lines += [f"- `{k}`" for k in plain]
-
-
-def _load_json(path):
+def _read_json(path):
     if not os.path.exists(path):
         return None
     try:
@@ -499,31 +243,44 @@ def _load_json(path):
         return None
 
 
-def _dump_json(path, data):
+def _write_json(path, data):
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2)
 
 
+# ---------------------------------------------------------------------------
+# Session hooks
+# ---------------------------------------------------------------------------
+
+def pytest_sessionstart(session):
+    global _start_time
+    _start_time = time.time()
+    os.makedirs(LATEST_DIR, exist_ok=True)
+
+
+def _write_all(directory: str, artifacts: dict) -> None:
+    """Write every {filename: data} artifact into `directory`."""
+    os.makedirs(directory, exist_ok=True)
+    for filename, data in artifacts.items():
+        _write_json(os.path.join(directory, filename), data)
+
+
 def pytest_sessionfinish(session, exitstatus):
-    report_data["wall_time"] = round(time.time() - start_time, 2)
-    snap = _build_snapshot()
+    sanity = _build_sanity_check(round(time.time() - _start_time, 2))
 
-    baseline = _load_json(BASELINE_PATH)
-    if baseline is None:
-        snap["baseline_comparison"] = {"status": "seeded"}
-    else:
-        snap["baseline_comparison"] = _compare_to_baseline(snap, baseline)
+    baseline = _read_json(os.path.join(BASELINE_DIR, SANITY_FILE))
+    sanity["baseline_comparison"] = (
+        {"status": "seeded"} if baseline is None
+        else _compare_to_baseline(sanity, baseline)
+    )
 
-    try:                                        # <-- add these 4 lines
-        _analyze_scenarios_and_plot(snap)
-    except Exception as exc:                    # never let reporting break the run
-        print(f"[scenario analysis] skipped: {exc}")
+    artifacts = {SANITY_FILE: sanity}
+    for name, payload in _recorded_reports.items():
+        artifacts[f"{name}.json"] = payload
 
-    _dump_json(LATEST_PATH, snap)
-    with open(MARKDOWN_PATH, "w", encoding="utf-8") as fh:
-        fh.write(_render_markdown(snap))
+    _write_all(LATEST_DIR, artifacts)
 
     bless = (session.config.getoption("--bless-baseline")
              or os.getenv("SILO_BLESS_BASELINE") == "1")
     if baseline is None or bless:
-        _dump_json(BASELINE_PATH, snap)
+        _write_all(BASELINE_DIR, artifacts)

@@ -3,24 +3,43 @@ tests/test_scenarios.py
 
 Scenario / user-input VARIABILITY matrix on the DESIGN path (run_optimization).
 
-For every built-in plant, sweeps the full combination of:
-  * 3 scenarios  — easy / medium / hard (initial_condition_range,
-                   randomness_level, disturbance_level),
-  * 4 controllers — P, PI, PID, FSF,
-  * 3 gain ranges — [0, 1], [1, 10], [-5, 0],
+MATRIX — 36 design runs
+-----------------------
+  3 plants     : ball_beam, dc_motor, inverted_pendulum
+  3 scenarios  : easy / mid / hard, given as
+                 (initial position, disturbance_level, randomness_level)
+                     easy -> (0.5, 0.0, 0.0)
+                     mid  -> (0.5, 0.5, 0.5)
+                     hard -> (0.5, 1.0, 1.0)
+                 The initial position is fixed at 0.5 and the target is 0.0, so
+                 every run starts from the SAME initial error (0.5); the
+                 scenarios differ only in disturbance and measurement noise.
+  4 controllers: P, PI, PID, FSF
+  1 gain range : [0, 100] applied to every gain of every controller
 
-i.e. 3 plants x 3 scenarios x 4 controllers x 3 ranges = 108 combinations, and
-records each combination's LAST-ITERATION metrics into
-reports/latest_report.json under the "test_scenarios" key (raw, nested as
-plant -> scenario -> controller -> gain range).
+Controller families are realised by handing the mock agent matching gain KEYS as
+param_ranges (P->Kp, PI->Kp/Ki, PID->Kp/Ki/Kd, FSF->K1..Kn); the engine picks the
+control law from those keys, so P/PI/PID/FSF are all genuinely exercised (not
+silently collapsed to FSF).
 
-Controller families are realised by handing the mock agent matching gain KEYS
-as param_ranges (P->Kp, PI->Kp/Ki, PID->Kp/Ki/Kd, FSF->K1..Kn); the engine then
-picks the control law from those keys, so P/PI/PID/FSF are all genuinely
-exercised (not silently collapsed to FSF).
+dt = 0.01 (the engine/API default). The earlier dt = 0.1 made the stiff DC-motor
+loop diverge under forward Euler (mse ~1e89), which would drive every dc_motor
+success rate to exactly 0 and hide the real trend.
 
-Recording/characterization test: it asserts only that every combination ran and
-produced well-formed metrics, then saves the values.
+WHAT IS RECORDED
+----------------
+The LAST-ITERATION outcome of every run is appended to a FLAT list at
+reports/latest_results/test_scenario_report.json -> "runs". Each record holds
+only RAW facts: plant, scenario parameters, controller, the gains actually used,
+initial_error, and the metrics dict.
+
+Derived quantities — plant complexity, parameter complexity, total complexity and
+the success rate — are deliberately NOT computed here. They are produced by
+`reports/make_report.py`, which turns this JSON into reports/report.md and the
+plots.
+
+This is a recording/characterization test: it asserts that every combination ran
+and produced well-formed metrics, then saves the values.
 """
 
 import math
@@ -32,32 +51,49 @@ import numpy as np
 from src.controllers_mock import run_optimization
 from src.systems import create_system
 
+REPORT_NAME = "test_scenario_report"
+
 
 # --- Matrix axes -----------------------------------------------------------
 
 PLANTS = ["ball_beam", "dc_motor", "inverted_pendulum"]
 
-SCENARIOS = {
-    "easy":   {"id": "easy",   "initial_condition_range": [0.1, 0.1],
-               "randomness_level": 0.1, "disturbance_level": 0.05, "param_uncertainty": 0.0},
-    "medium": {"id": "medium", "initial_condition_range": [0.5, 0.5],
-               "randomness_level": 0.5, "disturbance_level": 0.2,  "param_uncertainty": 0.0},
-    "hard":   {"id": "hard",   "initial_condition_range": [1.0, 1.0],
-               "randomness_level": 1.0, "disturbance_level": 1.0,  "param_uncertainty": 0.0},
+# name -> (initial position, disturbance_level, randomness_level)
+SCENARIO_SPECS = {
+    "easy": (0.5, 0.0, 0.0),
+    "mid":  (0.5, 0.5, 0.5),
+    "hard": (0.5, 1.0, 1.0),
 }
 
 CONTROLLERS = ["P", "PI", "PID", "FSF"]
 
-# Gain sampling ranges handed to the mock agent (per gain).
-GAIN_RANGES = [[0.0, 1.0], [1.0, 10.0], [-5.0, 0.0]]
+# One gain sampling range, used for every gain of every controller.
+GAIN_RANGE = [0.0, 100.0]
 
 # PID-family gain keys per controller; FSF is sized to the plant.
 PID_KEYS = {"P": ["Kp"], "PI": ["Kp", "Ki"], "PID": ["Kp", "Ki", "Kd"]}
 
+TARGET = 0.0
 SEED = 42
 MAX_ITER = 5
-DT = 0.1
+MAX_SCENARIOS = 1
+DT = 0.01
 MAX_TIME = 5.0
+
+
+def _scenario(name: str) -> dict:
+    """Expand a (position, disturbance, randomness) spec into an engine scenario."""
+    pos, disturbance, randomness = SCENARIO_SPECS[name]
+    return {
+        "id": name,
+        "initial_condition_range": [pos, pos],   # low == high -> a fixed IC
+        "randomness_level": randomness,
+        "disturbance_level": disturbance,
+        "param_uncertainty": 0.0,
+    }
+
+
+SCENARIOS = {name: _scenario(name) for name in SCENARIO_SPECS}
 
 
 # --- Helpers ---------------------------------------------------------------
@@ -77,8 +113,8 @@ def _json_safe(metrics: dict) -> dict:
 
 
 def _param_ranges(controller: str, gain_range: list, num_states: int) -> dict:
-    """Build {controller: {gain_key: range}} so the mock agent proposes the
-    gain KEYS that select the requested control law."""
+    """Build {controller: {gain_key: range}} so the mock agent proposes the gain
+    KEYS that select the requested control law."""
     if controller == "FSF":
         keys = [f"K{i + 1}" for i in range(num_states)]
     else:
@@ -86,22 +122,23 @@ def _param_ranges(controller: str, gain_range: list, num_states: int) -> dict:
     return {controller: {k: list(gain_range) for k in keys}}
 
 
-def _last_iteration_metrics(system_name, scenario, controller, param_ranges):
-    """Run one full mock design job; return JSON-safe metrics of the LAST
-    iteration of the last completed scenario (or None)."""
+def _last_iteration_entry(system_name, scenario, controller, param_ranges):
+    """Run one full mock design job; return the LAST history entry of the last
+    completed scenario (params + metrics), or None."""
     with redirect_stdout(StringIO()):
         result = run_optimization(
             llm_model="mock",
             run_id=1,
             seed=SEED,
             system_name=system_name,
-            max_scenarios=1,
+            max_scenarios=MAX_SCENARIOS,
             max_iter=MAX_ITER,
             controllers=[controller],
             custom_scenarios=[scenario],
             param_ranges=param_ranges,
             dt=DT,
             max_time=MAX_TIME,
+            target=TARGET,
         )
     scen_hist = result.get("all_scenario_history", [])
     if not scen_hist:
@@ -109,65 +146,100 @@ def _last_iteration_metrics(system_name, scenario, controller, param_ranges):
     history = scen_hist[-1].get("history", [])
     if not history:
         return None
-    return _json_safe(history[-1].get("metrics", {}))
+    return history[-1], len(history)
 
 
 # --- The matrix test -------------------------------------------------------
 
-def test_scenario_matrix(record_report_section):
-    plants_block = {}
-    combos = 0
-    with_finite_mse = 0
+def test_scenario_matrix(record_report):
+    runs = []
 
     for plant in PLANTS:
-        num_states = create_system(plant).num_states
-        scen_block = {}
+        system = create_system(plant)
+        num_states = system.num_states
+        num_actions = getattr(system, "num_inputs", 1)
+
         for sname, scenario in SCENARIOS.items():
-            ctrl_block = {}
+            lo, hi = scenario["initial_condition_range"]
+            initial_position = (lo + hi) / 2.0          # lo == hi -> exact
+            initial_error = abs(TARGET - initial_position)
+
             for controller in CONTROLLERS:
-                range_block = {}
-                for gain_range in GAIN_RANGES:
-                    pr = _param_ranges(controller, gain_range, num_states)
-                    metrics = _last_iteration_metrics(plant, scenario, controller, pr)
-                    assert metrics is not None, (
-                        f"{plant}/{sname}/{controller}/gains{gain_range}: "
-                        "design produced no history"
-                    )
-                    assert "mse" in metrics, (
-                        f"{plant}/{sname}/{controller}/gains{gain_range}: "
-                        "metrics missing mse"
-                    )
-                    combos += 1
-                    if isinstance(metrics.get("mse"), (int, float)):
-                        with_finite_mse += 1
-                    range_block[f"gains[{gain_range[0]},{gain_range[1]}]"] = metrics
-                ctrl_block[controller] = range_block
-            scen_block[sname] = ctrl_block
-        plants_block[plant] = scen_block
+                pr = _param_ranges(controller, GAIN_RANGE, num_states)
+                outcome = _last_iteration_entry(plant, scenario, controller, pr)
 
-    # assert combos == len(PLANTS) * len(SCENARIOS) * len(CONTROLLERS) * len(GAIN_RANGES)
-    # assert with_finite_mse > 0, "no combination produced a finite mse"
+                assert outcome is not None, (
+                    f"{plant}/{sname}/{controller}: design produced no history"
+                )
+                entry, n_iterations = outcome
+                metrics = _json_safe(entry.get("metrics", {}))
 
-    record_report_section("test_scenarios", {
+                assert "mse" in metrics, (
+                    f"{plant}/{sname}/{controller}: metrics missing mse"
+                )
+                assert "ss_error" in metrics, (
+                    f"{plant}/{sname}/{controller}: metrics missing ss_error"
+                )
+
+                gains = {
+                    k: v for k, v in (entry.get("params") or {}).items()
+                    if k != "reasoning"
+                }
+
+                runs.append({
+                    "plant": plant,
+                    "scenario": sname,
+                    "controller": controller,
+                    "gain_range": list(GAIN_RANGE),
+                    "gains": gains,
+                    "num_states": int(num_states),
+                    "num_actions": int(num_actions),
+                    "initial_position": initial_position,
+                    "target": TARGET,
+                    "initial_error": initial_error,
+                    "randomness_level": scenario["randomness_level"],
+                    "disturbance_level": scenario["disturbance_level"],
+                    "iterations": n_iterations,
+                    "metrics": metrics,
+                })
+
+    assert len(runs) == len(PLANTS) * len(SCENARIOS) * len(CONTROLLERS), (
+        f"expected {len(PLANTS) * len(SCENARIOS) * len(CONTROLLERS)} runs, "
+        f"recorded {len(runs)}"
+    )
+
+    record_report(REPORT_NAME, {
         "title": "Scenario / input variability matrix",
         "description": (
             "Design-path sweep over every built-in plant x 3 scenarios "
-            "(easy/medium/hard) x 4 controllers (P, PI, PID, FSF) x 3 gain "
-            "ranges ([0,1], [1,10], [-5,0]) = 108 combinations. Each cell holds "
-            "the last-iteration metrics of one run_optimization run. Controller "
-            "families are selected via matching param_ranges keys "
-            "(P->Kp, PI->Kp/Ki, PID->Kp/Ki/Kd, FSF->K1..Kn). Seed fixed at 42; "
-            "the mock agent samples gains within each range."
+            "(easy/mid/hard, given as initial position / disturbance_level / "
+            "randomness_level = 0.5/0.0/0.0, 0.5/0.5/0.5, 0.5/1.0/1.0) x 4 "
+            "controllers (P, PI, PID, FSF) with a single gain range [0, 100] = "
+            "36 runs. Each record is the last-iteration outcome of one "
+            "run_optimization run. Controller families are selected via matching "
+            "param_ranges keys (P->Kp, PI->Kp/Ki, PID->Kp/Ki/Kd, FSF->K1..Kn). "
+            "The target is 0.0 and the initial position is fixed at 0.5, so "
+            "initial_error is 0.5 for every run. Derived complexity and success "
+            "rate are computed by reports/make_report.py."
         ),
         "config": {
-            "scenarios": SCENARIOS,
+            "plants": PLANTS,
+            "scenario_specs": {
+                name: {
+                    "initial_position": spec[0],
+                    "disturbance_level": spec[1],
+                    "randomness_level": spec[2],
+                }
+                for name, spec in SCENARIO_SPECS.items()
+            },
             "controllers": CONTROLLERS,
-            "gain_ranges": GAIN_RANGES,
+            "gain_range": GAIN_RANGE,
+            "target": TARGET,
             "seed": SEED,
             "max_iter": MAX_ITER,
-            "max_scenarios": 1,
+            "max_scenarios": MAX_SCENARIOS,
             "dt": DT,
             "max_time": MAX_TIME,
         },
-        "plants": plants_block,
+        "runs": runs,
     })

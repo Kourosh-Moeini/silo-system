@@ -1,0 +1,68 @@
+{
+  "generated_at": "2026-08-21T19:59:32",
+  "wall_time_seconds": 3.08,
+  "summary": {
+    "passed": 49,
+    "failed": 0,
+    "skipped": 0,
+    "xfailed": 1,
+    "xpassed": 0,
+    "total": 50
+  },
+  "pass_rate_percent": 100.0,
+  "categories": {
+    "unit": {
+      "passed": 25,
+      "failed": 0,
+      "skipped": 0,
+      "xfailed": 0,
+      "xpassed": 0
+    },
+    "simulate": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "xfailed": 0,
+      "xpassed": 0
+    },
+    "scenario": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "xfailed": 0,
+      "xpassed": 0
+    },
+    "design": {
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "xfailed": 1,
+      "xpassed": 0
+    },
+    "randomness": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "xfailed": 0,
+      "xpassed": 0
+    },
+    "failure": {
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "xfailed": 0,
+      "xpassed": 0
+    },
+    "fixtures": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "xfailed": 0,
+      "xpassed": 0
+    }
+  },
+  "baseline_comparison": {
+    "baseline_generated_at": "2026-08-21T19:55:11",
+    "pass_rate_delta": 0.0
+  }
+}

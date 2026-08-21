@@ -1,0 +1,1270 @@
+{
+  "title": "Scenario / input variability matrix",
+  "description": "Design-path sweep over every built-in plant x 3 scenarios (easy/mid/hard, given as initial position / disturbance_level / randomness_level = 0.5/0.0/0.0, 0.5/0.5/0.5, 0.5/1.0/1.0) x 4 controllers (P, PI, PID, FSF) with a single gain range [0, 100] = 36 runs. Each record is the last-iteration outcome of one run_optimization run. Controller families are selected via matching param_ranges keys (P->Kp, PI->Kp/Ki, PID->Kp/Ki/Kd, FSF->K1..Kn). The target is 0.0 and the initial position is fixed at 0.5, so initial_error is 0.5 for every run. Derived complexity and success rate are computed by tests/make_report.py.",
+  "config": {
+    "plants": [
+      "ball_beam",
+      "dc_motor",
+      "inverted_pendulum"
+    ],
+    "scenario_specs": {
+      "easy": {
+        "initial_position": 0.5,
+        "disturbance_level": 0.0,
+        "randomness_level": 0.0
+      },
+      "mid": {
+        "initial_position": 0.5,
+        "disturbance_level": 0.5,
+        "randomness_level": 0.5
+      },
+      "hard": {
+        "initial_position": 0.5,
+        "disturbance_level": 1.0,
+        "randomness_level": 1.0
+      }
+    },
+    "controllers": [
+      "P",
+      "PI",
+      "PID",
+      "FSF"
+    ],
+    "gain_range": [
+      0.0,
+      100.0
+    ],
+    "target": 0.0,
+    "seed": 42,
+    "max_iter": 5,
+    "max_scenarios": 1,
+    "dt": 0.01,
+    "max_time": 5.0
+  },
+  "runs": [
+    {
+      "plant": "ball_beam",
+      "scenario": "easy",
+      "controller": "P",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 92.4154
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 468.365138835287,
+        "rmse": 21.641745281637686,
+        "settling_time": null,
+        "overshoot": 0.0,
+        "stable": false,
+        "stability_margin": -47906.643508414294,
+        "rise_time": null,
+        "zero_crossings": 0.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 0.0,
+        "ss_error": 43.50027183741775
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "easy",
+      "controller": "PI",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 50.4549,
+        "Ki": 17.2559
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 468.365138835287,
+        "rmse": 21.641745281637686,
+        "settling_time": null,
+        "overshoot": 0.0,
+        "stable": false,
+        "stability_margin": -47906.643508414294,
+        "rise_time": null,
+        "zero_crossings": 0.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 0.0,
+        "ss_error": 43.50027183741775
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "easy",
+      "controller": "PID",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 42.3406,
+        "Ki": 36.1828,
+        "Kd": 36.2598
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 468.365138835287,
+        "rmse": 21.641745281637686,
+        "settling_time": null,
+        "overshoot": 0.0,
+        "stable": false,
+        "stability_margin": -47906.643508414294,
+        "rise_time": null,
+        "zero_crossings": 0.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 0.0,
+        "ss_error": 43.50027183741775
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "easy",
+      "controller": "FSF",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "K1": 94.713,
+        "K2": 98.444
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 468.365138835287,
+        "rmse": 21.641745281637686,
+        "settling_time": null,
+        "overshoot": 0.0,
+        "stable": false,
+        "stability_margin": -47906.643508414294,
+        "rise_time": null,
+        "zero_crossings": 0.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 0.0,
+        "ss_error": 43.50027183741775
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "mid",
+      "controller": "P",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 5.3257
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 3,
+      "metrics": {
+        "mse": 0.4438042953086469,
+        "rmse": 0.6661863818096606,
+        "settling_time": null,
+        "overshoot": 234.33214773903836,
+        "stable": false,
+        "stability_margin": -1071.6607386951919,
+        "rise_time": 0.03,
+        "zero_crossings": 173.0,
+        "control_effort": 0.28811501420995,
+        "control_zero_crossings": 183.0,
+        "ss_error": 0.7925686316398874
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "mid",
+      "controller": "PI",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 45.7114,
+        "Ki": 11.0858
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 3,
+      "metrics": {
+        "mse": 392.69328373266325,
+        "rmse": 19.816490197122782,
+        "settling_time": null,
+        "overshoot": 121.20481271261903,
+        "stable": false,
+        "stability_margin": -27975.32854313136,
+        "rise_time": 0.03,
+        "zero_crossings": 14.0,
+        "control_effort": 0.9889155881373696,
+        "control_zero_crossings": 12.0,
+        "ss_error": 40.26585763006365
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "mid",
+      "controller": "PID",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 6.3101,
+        "Ki": 77.619,
+        "Kd": 45.768
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 4,
+      "metrics": {
+        "mse": 3.369021677696369,
+        "rmse": 1.835489492668473,
+        "settling_time": null,
+        "overshoot": 104.31074574774661,
+        "stable": false,
+        "stability_margin": -2643.162946651148,
+        "rise_time": 0.18,
+        "zero_crossings": 26.0,
+        "control_effort": 0.9979222031124746,
+        "control_zero_crossings": 320.0,
+        "ss_error": 3.206274769340932
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "mid",
+      "controller": "FSF",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "K1": 60.2622,
+        "K2": 42.6116
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 4,
+      "metrics": {
+        "mse": 447.3569154692074,
+        "rmse": 21.1508135888246,
+        "settling_time": null,
+        "overshoot": 121.55204777645051,
+        "stable": false,
+        "stability_margin": -71960.42311014033,
+        "rise_time": 0.48,
+        "zero_crossings": 16.0,
+        "control_effort": 0.9969281007816574,
+        "control_zero_crossings": 6.0,
+        "ss_error": 42.63979698338053
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "hard",
+      "controller": "P",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 24.9612
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 274.4371145297507,
+        "rmse": 16.56614362275514,
+        "settling_time": null,
+        "overshoot": 147.41893903953968,
+        "stable": false,
+        "stability_margin": -17251.84097165539,
+        "rise_time": 0.29,
+        "zero_crossings": 34.0,
+        "control_effort": 0.9739115773661486,
+        "control_zero_crossings": 36.0,
+        "ss_error": 34.457246887583494
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "hard",
+      "controller": "PI",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 55.4021,
+        "Ki": 36.8911
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 336.73414645195965,
+        "rmse": 18.350317339271264,
+        "settling_time": null,
+        "overshoot": 127.0461699108066,
+        "stable": false,
+        "stability_margin": -18743.421997036552,
+        "rise_time": 0.29,
+        "zero_crossings": 30.0,
+        "control_effort": 0.9910807639456148,
+        "control_zero_crossings": 20.0,
+        "ss_error": 37.705651319319024
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "hard",
+      "controller": "PID",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 64.2339,
+        "Ki": 44.9974,
+        "Kd": 68.0109
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 1,
+      "metrics": {
+        "mse": 3.3909883257288107,
+        "rmse": 1.8414636368195845,
+        "settling_time": null,
+        "overshoot": 169.47759142249242,
+        "stable": false,
+        "stability_margin": -1489.3864118802708,
+        "rise_time": 0.46,
+        "zero_crossings": 90.0,
+        "control_effort": 0.9999807162807912,
+        "control_zero_crossings": 326.0,
+        "ss_error": 2.749972531818674
+      }
+    },
+    {
+      "plant": "ball_beam",
+      "scenario": "hard",
+      "controller": "FSF",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "K1": 12.517,
+        "K2": 30.2825
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 2,
+      "metrics": {
+        "mse": 261.10110717112093,
+        "rmse": 16.15862330680188,
+        "settling_time": null,
+        "overshoot": 25463.387370726403,
+        "stable": false,
+        "stability_margin": -127216.936853632,
+        "rise_time": 0.68,
+        "zero_crossings": 35.0,
+        "control_effort": 0.9881272819221952,
+        "control_zero_crossings": 37.0,
+        "ss_error": 33.86849429993535
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "easy",
+      "controller": "P",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 71.8363
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 0.9312812865637194,
+        "rmse": 0.9650291635819714,
+        "settling_time": null,
+        "overshoot": 0.0,
+        "stable": false,
+        "stability_margin": -1413.4346191263223,
+        "rise_time": null,
+        "zero_crossings": 167.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 167.0,
+        "ss_error": 2.5823051519586747e-05
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "easy",
+      "controller": "PI",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 53.6691,
+        "Ki": 84.7172
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 0.9312812865637194,
+        "rmse": 0.9650291635819714,
+        "settling_time": null,
+        "overshoot": 0.0,
+        "stable": false,
+        "stability_margin": -1413.4346191263223,
+        "rise_time": null,
+        "zero_crossings": 167.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 167.0,
+        "ss_error": 2.5823051519586747e-05
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "easy",
+      "controller": "PID",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 82.8289,
+        "Ki": 53.234,
+        "Kd": 70.874
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 0.5280792203589866,
+        "rmse": 0.7266905946542769,
+        "settling_time": 5.0,
+        "overshoot": 211.4362494003734,
+        "stable": false,
+        "stability_margin": -911.2914726078561,
+        "rise_time": 2.58,
+        "zero_crossings": 249.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 250.0,
+        "ss_error": 0.022806367358696046
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "easy",
+      "controller": "FSF",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "K1": 84.1167,
+        "K2": 14.7776
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 2,
+      "metrics": {
+        "mse": 0.2477874666418532,
+        "rmse": 0.4977825495553788,
+        "settling_time": null,
+        "overshoot": 0.0,
+        "stable": false,
+        "stability_margin": -397.8555930500098,
+        "rise_time": null,
+        "zero_crossings": 499.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 500.0,
+        "ss_error": 4.255953130840373e-05
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "mid",
+      "controller": "P",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 69.3313
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 3,
+      "metrics": {
+        "mse": 1.341296602787971,
+        "rmse": 1.1581436019716946,
+        "settling_time": null,
+        "overshoot": 409.72920065053347,
+        "stable": false,
+        "stability_margin": -1948.6460032526672,
+        "rise_time": 0.5,
+        "zero_crossings": 167.0,
+        "control_effort": 0.9466542961869732,
+        "control_zero_crossings": 167.0,
+        "ss_error": 0.038791181832273335
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "mid",
+      "controller": "PI",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 66.9834,
+        "Ki": 53.1041
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 4,
+      "metrics": {
+        "mse": 1.4086906545018898,
+        "rmse": 1.186882746736968,
+        "settling_time": null,
+        "overshoot": 451.37019925143136,
+        "stable": false,
+        "stability_margin": -2267.109986438952,
+        "rise_time": 0.24,
+        "zero_crossings": 167.0,
+        "control_effort": 0.9363703373173154,
+        "control_zero_crossings": 169.0,
+        "ss_error": 0.08727008484044285
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "mid",
+      "controller": "PID",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 49.5384,
+        "Ki": 93.6609,
+        "Kd": 96.2131
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 3,
+      "metrics": {
+        "mse": 2.2942464052756213,
+        "rmse": 1.514676997011449,
+        "settling_time": null,
+        "overshoot": 469.4239347782746,
+        "stable": false,
+        "stability_margin": -2126.8150487732637,
+        "rise_time": 0.03,
+        "zero_crossings": 140.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 259.0,
+        "ss_error": 1.4897663233269234
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "mid",
+      "controller": "FSF",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "K1": 66.9256,
+        "K2": 18.4781
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 3,
+      "metrics": {
+        "mse": 0.43702412514102706,
+        "rmse": 0.6610780023121531,
+        "settling_time": null,
+        "overshoot": 306.62771073568524,
+        "stable": false,
+        "stability_margin": -1478.1984718783388,
+        "rise_time": 0.18,
+        "zero_crossings": 321.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 500.0,
+        "ss_error": 0.09767103317077792
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "hard",
+      "controller": "P",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 11.7416
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 2,
+      "metrics": {
+        "mse": 1.811392795080721,
+        "rmse": 1.3458799333821427,
+        "settling_time": null,
+        "overshoot": 317.759999732305,
+        "stable": false,
+        "stability_margin": -1438.6119998533927,
+        "rise_time": 0.62,
+        "zero_crossings": 205.0,
+        "control_effort": 0.7527197269222031,
+        "control_zero_crossings": 207.0,
+        "ss_error": 0.0766517182163779
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "hard",
+      "controller": "PI",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 45.6798,
+        "Ki": 5.7737
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 2.3458631932991123,
+        "rmse": 1.5316210997825515,
+        "settling_time": null,
+        "overshoot": 378.7201310484119,
+        "stable": false,
+        "stability_margin": -1721.1543907069406,
+        "rise_time": 0.29,
+        "zero_crossings": 181.0,
+        "control_effort": 0.9469719335639503,
+        "control_zero_crossings": 181.0,
+        "ss_error": 0.11773140267811437
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "hard",
+      "controller": "PID",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 34.777,
+        "Ki": 17.8474,
+        "Kd": 53.7258
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 3,
+      "metrics": {
+        "mse": 4.843589242070356,
+        "rmse": 2.2008155856569074,
+        "settling_time": null,
+        "overshoot": 603.2912123936497,
+        "stable": false,
+        "stability_margin": -2192.10401768665,
+        "rise_time": 0.61,
+        "zero_crossings": 125.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 290.0,
+        "ss_error": 0.7287442122189722
+      }
+    },
+    {
+      "plant": "dc_motor",
+      "scenario": "hard",
+      "controller": "FSF",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "K1": 31.8904,
+        "K2": 59.7918
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 1.2023414335619547,
+        "rmse": 1.0965133075170381,
+        "settling_time": null,
+        "overshoot": 1635.820119281388,
+        "stable": false,
+        "stability_margin": -11490.20351972622,
+        "rise_time": 1.8,
+        "zero_crossings": 274.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 500.0,
+        "ss_error": 0.03329410366622247
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "easy",
+      "controller": "P",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 24.2859
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 0.9375122700435783,
+        "rmse": 0.9682521727543802,
+        "settling_time": null,
+        "overshoot": 283.41508885277216,
+        "stable": false,
+        "stability_margin": -1314.9055580814068,
+        "rise_time": 0.44,
+        "zero_crossings": 32.0,
+        "control_effort": 0.9068945521006695,
+        "control_zero_crossings": 32.0,
+        "ss_error": 0.2983928789896108
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "easy",
+      "controller": "PI",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 49.7277,
+        "Ki": 9.8608
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 1.1063078860628828,
+        "rmse": 1.0518117160703635,
+        "settling_time": null,
+        "overshoot": 309.7606743020226,
+        "stable": false,
+        "stability_margin": -1412.7839427642878,
+        "rise_time": 0.31,
+        "zero_crossings": 30.0,
+        "control_effort": 0.9550316889024852,
+        "control_zero_crossings": 30.0,
+        "ss_error": 0.33793945828510913
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "easy",
+      "controller": "PID",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 41.2392,
+        "Ki": 84.2545,
+        "Kd": 23.1433
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 0.007435271272179477,
+        "rmse": 0.08622801906677131,
+        "settling_time": null,
+        "overshoot": 42.14492935113656,
+        "stable": true,
+        "stability_margin": 48.89598913395543,
+        "rise_time": 0.22,
+        "zero_crossings": 140.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 167.0,
+        "ss_error": 0.0016384400999026024
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "easy",
+      "controller": "FSF",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "K1": 85.8219,
+        "K2": 75.9586
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.0,
+      "disturbance_level": 0.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 0.007027505398574115,
+        "rmse": 0.08383021769370587,
+        "settling_time": 1.6600000000000001,
+        "overshoot": 36.877698023902006,
+        "stable": true,
+        "stability_margin": 89.66422398725041,
+        "rise_time": 0.26,
+        "zero_crossings": 337.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 500.0,
+        "ss_error": 4.096834831566823e-05
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "mid",
+      "controller": "P",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 96.1469
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 3,
+      "metrics": {
+        "mse": 1.0519683491995095,
+        "rmse": 1.0256550829589397,
+        "settling_time": null,
+        "overshoot": 359.99494992025126,
+        "stable": false,
+        "stability_margin": -1638.4016388658988,
+        "rise_time": 0.03,
+        "zero_crossings": 107.0,
+        "control_effort": 0.9685127549629563,
+        "control_zero_crossings": 107.0,
+        "ss_error": 0.3211904116334411
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "mid",
+      "controller": "PI",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 71.3109,
+        "Ki": 8.2038
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 4,
+      "metrics": {
+        "mse": 1.4449677130219452,
+        "rmse": 1.202068098329685,
+        "settling_time": null,
+        "overshoot": 321.0445976910541,
+        "stable": false,
+        "stability_margin": -1750.9511604390348,
+        "rise_time": 0.07,
+        "zero_crossings": 70.0,
+        "control_effort": 0.9619455633877095,
+        "control_zero_crossings": 68.0,
+        "ss_error": 0.41566352518422034
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "mid",
+      "controller": "PID",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 29.1847,
+        "Ki": 38.78,
+        "Kd": 8.47
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 2,
+      "metrics": {
+        "mse": 1.4214259455520037,
+        "rmse": 1.1922356921146102,
+        "settling_time": null,
+        "overshoot": 355.2254881390708,
+        "stable": false,
+        "stability_margin": -1503.0040651059146,
+        "rise_time": 0.28,
+        "zero_crossings": 71.0,
+        "control_effort": 0.9928813525189257,
+        "control_zero_crossings": 326.0,
+        "ss_error": 0.8023059182056823
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "mid",
+      "controller": "FSF",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "K1": 7.6921,
+        "K2": 25.17
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 0.5,
+      "disturbance_level": 0.5,
+      "iterations": 1,
+      "metrics": {
+        "mse": 0.2810621915424216,
+        "rmse": 0.5301529888083454,
+        "settling_time": null,
+        "overshoot": 2500.6162162082605,
+        "stable": false,
+        "stability_margin": -15365.860627874938,
+        "rise_time": 0.44,
+        "zero_crossings": 267.0,
+        "control_effort": 0.9987191791349903,
+        "control_zero_crossings": 500.0,
+        "ss_error": 0.020794629461268536
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "hard",
+      "controller": "P",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 85.9508
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 1,
+      "metrics": {
+        "mse": 2.1952849293822285,
+        "rmse": 1.4816493948914597,
+        "settling_time": null,
+        "overshoot": 266.3075420131974,
+        "stable": false,
+        "stability_margin": -1185.1012691415156,
+        "rise_time": 0.25,
+        "zero_crossings": 144.0,
+        "control_effort": 0.9788706945718375,
+        "control_zero_crossings": 144.0,
+        "ss_error": 0.2870266464670458
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "hard",
+      "controller": "PI",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 7.3965,
+        "Ki": 99.0701
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 649.3938078147982,
+        "rmse": 25.483206388027355,
+        "settling_time": null,
+        "overshoot": 4968.6679058446625,
+        "stable": false,
+        "stability_margin": -23692.92112445192,
+        "rise_time": null,
+        "zero_crossings": 22.0,
+        "control_effort": 0.9780204008895865,
+        "control_zero_crossings": 17.0,
+        "ss_error": 29.543031980676204
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "hard",
+      "controller": "PID",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "Kp": 11.6069,
+        "Ki": 94.0676,
+        "Kd": 14.1675
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 4,
+      "metrics": {
+        "mse": 11.022978523512144,
+        "rmse": 3.3200871258917504,
+        "settling_time": null,
+        "overshoot": 650.0221712078072,
+        "stable": false,
+        "stability_margin": -3150.1108560390358,
+        "rise_time": 1.85,
+        "zero_crossings": 69.0,
+        "control_effort": 0.9970925848537181,
+        "control_zero_crossings": 324.0,
+        "ss_error": 4.58591710102533
+      }
+    },
+    {
+      "plant": "inverted_pendulum",
+      "scenario": "hard",
+      "controller": "FSF",
+      "gain_range": [
+        0.0,
+        100.0
+      ],
+      "gains": {
+        "K1": 64.797,
+        "K2": 67.7139
+      },
+      "num_states": 2,
+      "num_actions": 1,
+      "initial_position": 0.5,
+      "target": 0.0,
+      "initial_error": 0.5,
+      "randomness_level": 1.0,
+      "disturbance_level": 1.0,
+      "iterations": 1,
+      "metrics": {
+        "mse": 1.1458454523270651,
+        "rmse": 1.0704417089814209,
+        "settling_time": null,
+        "overshoot": 641.8301258083251,
+        "stable": false,
+        "stability_margin": -2682.9928972646917,
+        "rise_time": 0.08,
+        "zero_crossings": 261.0,
+        "control_effort": 0.9925847572084462,
+        "control_zero_crossings": 441.0,
+        "ss_error": 0.010043647310590029
+      }
+    }
+  ]
+}

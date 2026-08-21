@@ -1,0 +1,324 @@
+{
+  "same_config_diff_seeds": {
+    "title": "Same config, different seeds",
+    "description": "Drives run_optimization on each built-in plant under a fixed 'medium' scenario (IC=[0.5, 0.5], randomness_level=0.5, disturbance_level=0.2) with PID and max_iter=5, over seeds [1, 7, 42, 100, 2026]. Last-iteration metrics are aggregated over all plants x seeds.",
+    "config": {
+      "scenario": {
+        "id": "medium",
+        "initial_condition_range": [
+          0.5,
+          0.5
+        ],
+        "randomness_level": 0.5,
+        "disturbance_level": 0.2,
+        "param_uncertainty": 0.0
+      },
+      "controllers": [
+        "PID"
+      ],
+      "target": 0.0,
+      "max_iter": 5,
+      "max_scenarios": 1,
+      "dt": 0.01,
+      "max_time": 5.0,
+      "seeds": [
+        1,
+        7,
+        42,
+        100,
+        2026
+      ]
+    },
+    "aggregate": {
+      "n_samples": 15,
+      "mse_mean": 5.350372,
+      "mse_variance": 47.617649,
+      "rmse_mean": 1.969923,
+      "rmse_variance": 1.469776,
+      "ss_error_mean": 2.572451,
+      "ss_error_variance": 10.543546,
+      "initial_error": 0.5
+    },
+    "plants": {
+      "ball_beam": {
+        "seed=1": {
+          "mse": 0.6550228890383454,
+          "rmse": 0.8093348435835105,
+          "settling_time": null,
+          "overshoot": 0.0,
+          "stable": false,
+          "stability_margin": -275349.81504134083,
+          "rise_time": null,
+          "zero_crossings": 124.0,
+          "control_effort": 0.9951185414681679,
+          "control_zero_crossings": 342.0,
+          "ss_error": 0.9073223185640182
+        },
+        "seed=7": {
+          "mse": 26.222512813692834,
+          "rmse": 5.120792205674121,
+          "settling_time": null,
+          "overshoot": 67.50925901725793,
+          "stable": false,
+          "stability_margin": -10479.635001494396,
+          "rise_time": null,
+          "zero_crossings": 32.0,
+          "control_effort": 0.9817535709360832,
+          "control_zero_crossings": 218.0,
+          "ss_error": 11.56381821087412
+        },
+        "seed=42": {
+          "mse": 0.3521293130693452,
+          "rmse": 0.5934048475276766,
+          "settling_time": null,
+          "overshoot": 160.4409414728426,
+          "stable": false,
+          "stability_margin": -702.204707364213,
+          "rise_time": 0.03,
+          "zero_crossings": 195.0,
+          "control_effort": 0.9981300122151592,
+          "control_zero_crossings": 344.0,
+          "ss_error": 0.24625421976615794
+        },
+        "seed=100": {
+          "mse": 3.0357134464592623,
+          "rmse": 1.7423298902501967,
+          "settling_time": null,
+          "overshoot": 121.53246358539865,
+          "stable": false,
+          "stability_margin": -2641.8991578948135,
+          "rise_time": 0.11,
+          "zero_crossings": 24.0,
+          "control_effort": 0.9961793126696041,
+          "control_zero_crossings": 336.0,
+          "ss_error": 2.788286881388172
+        },
+        "seed=2026": {
+          "mse": 14.12378142057054,
+          "rmse": 3.7581619737007794,
+          "settling_time": null,
+          "overshoot": 89.98280685608715,
+          "stable": false,
+          "stability_margin": -6144.565174116191,
+          "rise_time": 0.15,
+          "zero_crossings": 28.0,
+          "control_effort": 0.9966567205874709,
+          "control_zero_crossings": 296.0,
+          "ss_error": 7.790260192505922
+        }
+      },
+      "dc_motor": {
+        "seed=1": {
+          "mse": 2.188621141551356,
+          "rmse": 1.4793989122448874,
+          "settling_time": null,
+          "overshoot": 0.0,
+          "stable": false,
+          "stability_margin": -484582.4866170432,
+          "rise_time": null,
+          "zero_crossings": 144.0,
+          "control_effort": 0.9968042454380415,
+          "control_zero_crossings": 257.0,
+          "ss_error": 0.901600920415543
+        },
+        "seed=7": {
+          "mse": 4.849541945680152,
+          "rmse": 2.2021675562227667,
+          "settling_time": null,
+          "overshoot": 407.31402561176964,
+          "stable": false,
+          "stability_margin": -1559.0485423124242,
+          "rise_time": 0.61,
+          "zero_crossings": 74.0,
+          "control_effort": 0.9994780847137817,
+          "control_zero_crossings": 258.0,
+          "ss_error": 0.21366366371174217
+        },
+        "seed=42": {
+          "mse": 3.1651769600302995,
+          "rmse": 1.7790944213364,
+          "settling_time": null,
+          "overshoot": 592.568404555462,
+          "stable": false,
+          "stability_margin": -2662.039678412868,
+          "rise_time": 0.08,
+          "zero_crossings": 113.0,
+          "control_effort": 0.9992771554725284,
+          "control_zero_crossings": 253.0,
+          "ss_error": 0.14768209476272143
+        },
+        "seed=100": {
+          "mse": 2.073000179224988,
+          "rmse": 1.4397917138339795,
+          "settling_time": null,
+          "overshoot": 505.62138318707406,
+          "stable": false,
+          "stability_margin": -2187.671763078425,
+          "rise_time": 0.22,
+          "zero_crossings": 138.0,
+          "control_effort": 0.9996475844829226,
+          "control_zero_crossings": 256.0,
+          "ss_error": 0.9068683041400705
+        },
+        "seed=2026": {
+          "mse": 2.677721160580056,
+          "rmse": 1.6363743949903566,
+          "settling_time": null,
+          "overshoot": 647.2643502242252,
+          "stable": false,
+          "stability_margin": -2657.5307409884604,
+          "rise_time": 0.15,
+          "zero_crossings": 128.0,
+          "control_effort": 1.0,
+          "control_zero_crossings": 257.0,
+          "ss_error": 1.862257891959517
+        }
+      },
+      "inverted_pendulum": {
+        "seed=1": {
+          "mse": 1.2494546452072361,
+          "rmse": 1.1177900720650709,
+          "settling_time": null,
+          "overshoot": 0.0,
+          "stable": false,
+          "stability_margin": -502127.2058624976,
+          "rise_time": null,
+          "zero_crossings": 105.0,
+          "control_effort": 0.9958073575824495,
+          "control_zero_crossings": 330.0,
+          "ss_error": 1.471190692450869
+        },
+        "seed=7": {
+          "mse": 3.312517530025441,
+          "rmse": 1.8200322881821194,
+          "settling_time": null,
+          "overshoot": 689.5236082248189,
+          "stable": false,
+          "stability_margin": -3347.618041124095,
+          "rise_time": 0.21,
+          "zero_crossings": 79.0,
+          "control_effort": 0.9972576811232909,
+          "control_zero_crossings": 324.0,
+          "ss_error": 3.2718711588660367
+        },
+        "seed=42": {
+          "mse": 13.400354219746122,
+          "rmse": 3.660649425955198,
+          "settling_time": null,
+          "overshoot": 871.9998753093483,
+          "stable": false,
+          "stability_margin": -4436.72665769064,
+          "rise_time": 0.13,
+          "zero_crossings": 42.0,
+          "control_effort": 0.9986804022016242,
+          "control_zero_crossings": 332.0,
+          "ss_error": 6.015082203031438
+        },
+        "seed=100": {
+          "mse": 0.9538739340299983,
+          "rmse": 0.9766646988757187,
+          "settling_time": null,
+          "overshoot": 471.993639296565,
+          "stable": false,
+          "stability_margin": -1617.4506080378858,
+          "rise_time": 0.08,
+          "zero_crossings": 108.0,
+          "control_effort": 0.9999348114544777,
+          "control_zero_crossings": 324.0,
+          "ss_error": 0.26580789179406983
+        },
+        "seed=2026": {
+          "mse": 1.9961520040807423,
+          "rmse": 1.4128524353522354,
+          "settling_time": null,
+          "overshoot": 64429.96741323957,
+          "stable": false,
+          "stability_margin": -322049.8370661979,
+          "rise_time": 4.22,
+          "zero_crossings": 83.0,
+          "control_effort": 0.9873118928623985,
+          "control_zero_crossings": 336.0,
+          "ss_error": 0.23480128441297374
+        }
+      }
+    }
+  },
+  "same_seed_repeated_runs": {
+    "title": "Repeated runs (same seed)",
+    "description": "Same 'medium' scenario, PID and max_iter=5, but a single fixed seed (42) run 5 times per plant; only the last run's metrics are recorded per plant (the design 'seed' does not reseed the mock agents' gain RNG, so repeats differ). Values aggregate the recorded last runs across the plants.",
+    "config": {
+      "scenario": {
+        "id": "medium",
+        "initial_condition_range": [
+          0.5,
+          0.5
+        ],
+        "randomness_level": 0.5,
+        "disturbance_level": 0.2,
+        "param_uncertainty": 0.0
+      },
+      "controllers": [
+        "PID"
+      ],
+      "target": 0.0,
+      "max_iter": 5,
+      "max_scenarios": 1,
+      "dt": 0.01,
+      "max_time": 5.0,
+      "seed": 42,
+      "repeats": 5,
+      "recorded": "last run per plant only"
+    },
+    "aggregate": {
+      "n_samples": 3,
+      "mse_mean": 2.97242,
+      "mse_variance": 0.743487,
+      "rmse_mean": 1.703241,
+      "rmse_variance": 0.071389,
+      "ss_error_mean": 2.490018,
+      "ss_error_variance": 1.132959,
+      "initial_error": 0.5
+    },
+    "plants": {
+      "ball_beam": {
+        "mse": 3.449294926328106,
+        "rmse": 1.8572277529501076,
+        "settling_time": null,
+        "overshoot": 103.22428683827627,
+        "stable": false,
+        "stability_margin": -2679.674563271899,
+        "rise_time": 0.18,
+        "zero_crossings": 26.0,
+        "control_effort": 0.9968778497202337,
+        "control_zero_crossings": 318.0,
+        "ss_error": 3.255640112167055
+      },
+      "dc_motor": {
+        "mse": 1.762039910484065,
+        "rmse": 1.3274185136889063,
+        "settling_time": null,
+        "overshoot": 311.452412913675,
+        "stable": false,
+        "stability_margin": -2076.064129943132,
+        "rise_time": 1.0,
+        "zero_crossings": 156.0,
+        "control_effort": 1.0,
+        "control_zero_crossings": 256.0,
+        "ss_error": 0.9847964128705585
+      },
+      "inverted_pendulum": {
+        "mse": 3.7059259990771074,
+        "rmse": 1.9250781799909082,
+        "settling_time": null,
+        "overshoot": 371.3201543086965,
+        "stable": false,
+        "stability_margin": -3397.2279741537664,
+        "rise_time": 0.13,
+        "zero_crossings": 56.0,
+        "control_effort": 0.998866547543008,
+        "control_zero_crossings": 314.0,
+        "ss_error": 3.229618049449779
+      }
+    }
+  }
+}
